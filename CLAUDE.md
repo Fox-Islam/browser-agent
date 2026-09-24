@@ -11,7 +11,7 @@ registry and its sweep, credits and workspace scoping. Nothing here imports `App
 
 - PHP 8.3, strict types, PSR-12. `pint.json` at the package root is authoritative.
 - Framework-agnostic: Guzzle and PSR interfaces (`Psr\Log\LoggerInterface`, PSR-18/PSR-17 where it
-  fits). Laravel integration lives in one optional service provider, and nothing else depends on it.
+  fits), and `amphp/websocket-client` for the CDP transport. Laravel integration lives in one optional service provider, and nothing else depends on it.
 - At most 3 return statements per method, cognitive complexity at most 15. Split long methods into
   private methods or dedicated classes.
 - Constructor promotion, typed and readonly properties where they fit. Classes stay small and single-purpose.

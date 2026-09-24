@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><title>Hidden inputs</title>
+<style>
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); border: 0; padding: 0; }
+  label { display: inline-block; padding: 8px; margin: 6px; border: 1px solid #333; }
+</style></head>
+<body>
+<label id="terms"><input class="sr-only" type="checkbox" name="terms"> Accept terms</label>
+<input class="sr-only" type="radio" id="yearly" name="plan"><label id="plan" for="yearly">Yearly plan</label>
+<span class="sr-only"><input type="checkbox" id="news"></span><label id="newslabel" for="news">Newsletter</label>
+<input class="sr-only" type="checkbox" aria-label="Unlabelled">
+<button class="sr-only">Hidden button</button>
+</body></html>

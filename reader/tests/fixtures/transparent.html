@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><title>Transparent</title>
+<style>
+  .hide { opacity: 0; position: absolute; }
+  label { display: inline-block; padding: 6px; margin: 6px; border: 1px solid #333; }
+  .switch { position: relative; display: inline-block; width: 60px; height: 30px; margin: 6px; }
+  .switch input { opacity: 0; width: 100%; height: 100%; margin: 0; position: absolute; pointer-events: none; }
+  .switch span { position: absolute; inset: 0; background: #2a2; }
+</style></head>
+<body>
+<label id="wrap"><input class="hide" type="checkbox" name="terms"> Accept terms</label>
+<input class="hide" type="radio" id="plan" name="plan"><label id="for" for="plan">Monthly plan</label>
+<div class="switch"><input type="checkbox" aria-label="Dark mode"><span id="knob" onclick="this.previousElementSibling.click()"></span></div>
+<div style="margin-top:40px"><input type="checkbox" aria-label="Invisible" style="opacity:0"></div>
+</body></html>

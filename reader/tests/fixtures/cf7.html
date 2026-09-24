@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><title>Contact</title><style>input, button { display: block; margin: 6px; }</style></head>
+<body>
+<h1>Contact us</h1>
+<form class="wpcf7-form" novalidate>
+<label>Your name <input name="your-name"></label>
+<input type="submit" value="Send">
+<div class="wpcf7-response-output" aria-live="polite"></div>
+</form>
+<button type="button" id="check">Check availability</button>
+<div id="availability"></div>
+<script>
+window.sent = 0;
+window.submissions = 0;
+document.querySelector('form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  window.submissions++;
+  const output = document.querySelector('.wpcf7-response-output');
+  const name = e.target.elements['your-name'].value;
+  // Contact Form 7 replaces the response area on every submission.
+  output.replaceWith(Object.assign(document.createElement('div'), {
+    className: 'wpcf7-response-output',
+    textContent: name ? 'Thank you for your message. It has been sent.' : 'One or more fields have an error. Please check and try again.',
+  }));
+  if (name) window.sent++;
+});
+document.getElementById('check').addEventListener('click', () => {
+  document.getElementById('availability').replaceChildren(Object.assign(document.createElement('p'), {textContent: 'Not available'}));
+});
+</script>
+</body></html>

@@ -1,0 +1,7 @@
+<!doctype html>
+<html><head><title>Clock</title></head>
+<body>
+<p id="clock"></p>
+<div><button onclick="this.textContent = 'Pressed'">Press</button></div>
+<script>setInterval(() => { document.getElementById('clock').textContent = Date.now(); }, 20);</script>
+</body></html>

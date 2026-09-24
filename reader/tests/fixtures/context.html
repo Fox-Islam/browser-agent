@@ -1,0 +1,12 @@
+<!doctype html>
+<html><head><title>Context</title></head>
+<body>
+<article><h2>Status</h2><p id="clock">0</p><button id="refresh">Refresh</button></article>
+<table>
+<tr><th>Invoice 1</th><td>£10</td><td><button>Delete</button></td></tr>
+<tr><th>Invoice 2</th><td>£20</td><td><button>Delete</button></td></tr>
+</table>
+<ul><li>Alpha item <button>Open</button></li></ul>
+<form aria-label="Newsletter"><input aria-label="Email"><button>Join</button></form>
+<script>setInterval(() => { const c = document.getElementById('clock'); c.textContent = String(Number(c.textContent) + 1); }, 20);</script>
+</body></html>

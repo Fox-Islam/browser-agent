@@ -1,0 +1,12 @@
+<!doctype html>
+<html><head><title>Private names</title><style>label, button { display: block; margin: 6px; }</style></head>
+<body>
+<label>PIN <input type="password" role="textbox" value="hunter2"> required</label>
+<button>Pay with <input type="text" autocomplete="cc-number" value="4111111111111111"> now</button>
+<label>Expiry <select autocomplete="cc-exp-month"><option>01</option><option selected>07</option></select> month</label>
+<span id="secret-ref">Card <input type="text" autocomplete="cc-csc" value="987" aria-label="Security code"></span>
+<button aria-labelledby="secret-ref">Confirm</button>
+<label><input type="checkbox"> Remember <input type="password" value="hunter3"> on this device</label>
+<button>Unlock <input type="password" value="hunter4"></button>
+<label>Amount <input type="text" value="25"> pounds</label>
+</body></html>

@@ -1,0 +1,17 @@
+<!doctype html>
+<html><head><title>Screen reader only</title>
+<style>
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .sr-only:focus { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; }
+  .inset { clip-path: inset(50%); position: absolute; }
+  .tiny { width: 1px; height: 1px; overflow: hidden; }
+</style></head>
+<body>
+<a id="skip" class="sr-only" href="#main">Skip to content</a>
+<h1>Visible heading</h1>
+<button>Search<span class="sr-only"> the whole site</span></button>
+<span class="inset">Inset hidden text</span>
+<div class="tiny">Tiny box text<button>Tiny button</button></div>
+<div class="sr-only"><button>Hidden helper</button></div>
+<p id="main">Visible paragraph</p>
+</body></html>

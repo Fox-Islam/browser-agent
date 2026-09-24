@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><title>Execute</title><style>body { height: 3000px; } input, select, button { display: block; margin: 6px; }</style></head>
+<body>
+<button id="go" onclick="this.textContent = 'Clicked ' + (++window.clicks)">Go</button>
+<input id="name" aria-label="Name" value="old text">
+<input id="when" type="date" aria-label="When" min="2026-01-01">
+<select id="size" aria-label="Size"><option value="s">Small</option><option value="m">Medium</option></select>
+<div id="log"></div>
+<script>
+window.clicks = 0;
+for (const id of ['when', 'size']) document.getElementById(id).addEventListener('change', (e) => { document.getElementById('log').textContent += id + '=' + e.target.value + ';'; });
+</script>
+</body></html>

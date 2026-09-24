@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><title>Sign up</title><style>input, select, button { display: block; margin: 6px; }</style></head>
+<body>
+<h1>Join the list</h1>
+<form id="form">
+<label>Name <input name="name"></label>
+<label>Email <input name="email" type="email"></label>
+<label>Size <select name="size"><option value="s">Small</option><option value="m" selected>Medium</option><option value="l">Large</option></select></label>
+<button type="submit">Send</button>
+</form>
+<a href="/names.html">About</a>
+<p id="thanks"></p>
+<script>
+document.getElementById('form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const data = new FormData(e.target);
+  document.getElementById('thanks').textContent = `Thanks, ${data.get('name')} <${data.get('email')}> size ${data.get('size')}`;
+});
+</script>
+</body></html>

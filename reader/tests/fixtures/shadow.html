@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><title>Shadow</title></head>
+<body>
+<p>Before host</p>
+<my-card><span slot="title">Slotted title</span><button>Slotted button</button></my-card>
+<p>After host</p>
+<script>
+customElements.define('my-card', class extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' }).innerHTML =
+      '<h2><slot name="title"></slot></h2><button>Shadow button</button><div><slot></slot></div>';
+  }
+});
+</script>
+</body></html>

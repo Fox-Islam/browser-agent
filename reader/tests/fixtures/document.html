@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><title>Document</title><style>section { height: 900px; } body { margin: 0; }</style></head>
+<body>
+<section>
+<h1>Top heading</h1>
+<div role="heading" aria-level="3">Level three by role</div>
+<div role="heading">Level two by default</div>
+<p>First screen text</p>
+<a href="/names.html?tab=1#part">Same origin link</a>
+<a href="https://example.com/away">Other origin link</a>
+<a href="/very/long/path/that/goes/on/and/on/and/on/and/on/and/on">Long link</a>
+<label>Name <input required></label>
+<label>Email <input aria-required="true"></label>
+<label>Notes <input></label>
+</section>
+<section>
+<h2>Below the fold</h2>
+<p>Second screen text</p>
+<button>Far button</button>
+<div style="display:none"><p>Hidden text</p><button>Hidden button</button></div>
+<div aria-hidden="true"><button>Aria hidden button</button></div>
+<div inert><button>Inert button</button></div>
+<div style="height:20px;overflow:hidden"><div style="height:40px"></div><p>Clipped text</p><button>Clipped button</button></div>
+</section>
+</body></html>

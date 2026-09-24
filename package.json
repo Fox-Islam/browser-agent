@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node reader/build.js",
+    "test": "node reader/build.js && node --test reader/tests/*.test.js"
+  },
+  "devDependencies": {
+    "dom-accessibility-api": "0.7.1",
+    "esbuild": "0.28.2"
+  }
+}

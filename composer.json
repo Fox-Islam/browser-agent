@@ -11,8 +11,8 @@
     ],
     "require": {
         "php": "^8.3",
-        "guzzlehttp/guzzle": "^7.9",
-        "psr/log": "^3.0"
+        "amphp/websocket-client": "^2.0",
+        "guzzlehttp/guzzle": "^7.9"
     },
     "require-dev": {
         "laravel/pint": "^1.18",

@@ -1,0 +1,18 @@
+<!doctype html>
+<html><head><title>Editable</title><style>div, textarea, input { display: block; margin: 6px; min-height: 20px; }</style></head>
+<body>
+<div contenteditable="true" aria-label="Message body">Hello <b>world</b></div>
+<div role="combobox" aria-label="Picker" aria-expanded="false" tabindex="0">Pick one</div>
+<input aria-label="City" list="cities"><datalist id="cities"><option value="Leeds"></datalist>
+<input role="combobox" aria-label="Country" aria-expanded="true">
+<textarea aria-label="Notes">Some notes</textarea>
+<textarea aria-label="Read-only notes" readonly>Fixed</textarea>
+<input type="search" aria-label="Search site">
+<input type="number" aria-label="Quantity" value="3">
+<div role="slider" aria-label="Volume" aria-valuenow="40" tabindex="0">|</div>
+<input type="checkbox" aria-label="Mixed" id="mixed">
+<div role="switch" aria-checked="true" aria-label="Wifi" tabindex="0">on</div>
+<div role="tab" aria-selected="true">Overview</div>
+<details><summary>More</summary><button>Inside details</button></details>
+<script>document.getElementById('mixed').indeterminate = true;</script>
+</body></html>

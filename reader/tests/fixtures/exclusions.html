@@ -1,0 +1,22 @@
+<!doctype html>
+<html><head><title>Exclusions</title>
+<style>button { display: block; margin: 4px; }</style></head>
+<body>
+<button>Enabled</button>
+<button disabled>Natively disabled</button>
+<fieldset disabled><button>Disabled by fieldset</button></fieldset>
+<button aria-disabled="true">Aria disabled</button>
+<div aria-disabled="true"><div><button>Aria disabled ancestor</button></div></div>
+<div inert><button>Inert</button></div>
+<div aria-hidden="true"><button>Aria hidden</button></div>
+<button style="display:none">Display none</button>
+<button style="visibility:hidden">Visibility hidden</button>
+<div style="content-visibility:hidden"><button>Content visibility hidden</button></div>
+<button style="width:0;height:0;padding:0;border:0;overflow:hidden">Zero size</button>
+<button style="position:absolute;top:2000px">Below the fold</button>
+<button style="position:absolute;left:-500px">Left of the viewport</button>
+<div style="height:30px;overflow:hidden"><div style="height:30px"></div><button>Clipped by overflow</button></div>
+<div role="grid"><div role="row"><div role="gridcell">Plain cell</div><div role="gridcell"><button>Cell button</button></div></div></div>
+<div role="button" tabindex="0">Div button</div>
+<div role="presentation">Not a control</div>
+</body></html>
