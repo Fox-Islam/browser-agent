@@ -34,8 +34,22 @@ final class RunState
     /** Decision requests sent, including those whose page changed before the answer arrived. */
     public int $decisionCalls = 0;
 
+    /**
+     * Decisions the page moved under before they could be carried out, and why. Each costs a
+     * decision request, so the decision budget bounds the list.
+     *
+     * @var list<array{after_step: int, reason: string}>
+     */
+    public array $stale = [];
+
     /** @var list<int> indices of the sub-goals read as satisfied */
     public array $planSatisfied = [];
+
+    /** @var array<int, float|null> each tracked sub-goal's latest satisfaction reading */
+    public array $satisfaction = [];
+
+    /** @var list<int> sub-goals a done run stopped without reading as satisfied */
+    public array $unconfirmed = [];
 
     /** @var list<array<string, mixed>> */
     public array $textCalls = [];
@@ -81,6 +95,8 @@ final class RunState
             'reason' => $this->reason,
             'history' => array_map(fn (Step $s) => $s->toArray(), $this->history),
             'plan_satisfied' => $this->planSatisfied,
+            'satisfaction' => $this->satisfaction,
+            'unconfirmed' => $this->unconfirmed,
             'evidence' => $this->evidence,
             'refused_url' => $this->refusedUrl,
             'queries' => $this->queries,
@@ -88,6 +104,7 @@ final class RunState
             'text_calls' => $this->textCalls,
             'decisions' => count($this->decisions),
             'decision_calls' => $this->decisionCalls,
+            'stale' => $this->stale,
             'elapsed_ms' => $this->elapsedMs,
         ];
     }

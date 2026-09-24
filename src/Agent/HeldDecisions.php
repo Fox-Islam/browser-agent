@@ -35,33 +35,32 @@ final class HeldDecisions
     }
 
     /**
-     * A held decision that applies to the current page, as a decision on the current observation,
-     * so the executor's freshness checks apply to it.
+     * The held decision for the first outstanding sub-goal, when it applies to the current page,
+     * as a decision on the current observation, so the executor's freshness checks apply to it.
+     * Answers held for later sub-goals wait their turn: they were given on a page where the
+     * earlier steps had not happened, and a control like "View history" is on every page.
      *
      * @param  list<int>  $outstanding
      */
     public function reuse(RunState $state, array $outstanding): ?Decision
     {
-        foreach ($outstanding as $index) {
-            $reading = $this->held[$index] ?? null;
-            $action = $reading === null ? null : $this->applicable($state, $reading);
-            if ($action !== null) {
-                // Only the answer being used is retired; the others are re-resolved when used.
-                unset($this->held[$index]);
-
-                return new Decision(
-                    choice: $action->id,
-                    operation: (string) $reading->operation,
-                    target: null,
-                    confidence: $reading->confidence ?? 0.0,
-                    probabilities: [$action->id => $reading->confidence ?? 0.0],
-                    model: 'held',
-                    reusedFor: $index,
-                );
-            }
+        $index = $outstanding[0] ?? null;
+        $reading = $index === null ? null : ($this->held[$index] ?? null);
+        $action = $reading === null ? null : $this->applicable($state, $reading);
+        if ($action === null) {
+            return null;
         }
+        unset($this->held[$index]);
 
-        return null;
+        return new Decision(
+            choice: $action->id,
+            operation: (string) $reading->operation,
+            target: null,
+            confidence: $reading->confidence ?? 0.0,
+            probabilities: [$action->id => $reading->confidence ?? 0.0],
+            model: 'held',
+            reusedFor: $index,
+        );
     }
 
     private function applicable(RunState $state, PlanReading $reading): ?Action

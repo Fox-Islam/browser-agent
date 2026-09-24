@@ -29,9 +29,11 @@ final class FakeModels
 
     /**
      * Each decision is an operation, the label of its target, satisfied readings per sub-goal
-     * (`plan`), and an operation to answer while the first is not offered (`else`).
+     * (`plan`), what each sub-goal would do (`holds`: operation and target label), and an
+     * operation to answer while the first is not offered (`else`). `plan` and `holds` are keyed by
+     * position among the outstanding sub-goals, as the questions are.
      *
-     * @param  list<array{0: string, 1?: string, plan?: array<int, float>, else?: string}>  $decisions
+     * @param  list<array{0: string, 1?: string, plan?: array<int, float>, holds?: array<int, array{0: string, 1?: string}>, else?: string}>  $decisions
      * @param  array<string, string|null>  $values  field label => value the text helper gives
      */
     public function __construct(private array $decisions = [], private array $values = [])
@@ -127,9 +129,19 @@ final class FakeModels
         [$operation, $label] = [$scripted[0], $scripted[1] ?? null];
         $answers = [];
         foreach ($questions as $name => $question) {
+            $hold = preg_match('/^plan(\d+)_(operation|(\w+)_target)$/', $name, $m) === 1 ? ($scripted['holds'][(int) $m[1]] ?? null) : null;
+            if ($hold !== null) {
+                $answers[$name] = $m[2] === 'operation'
+                    ? self::choice(array_keys($question['criteria']), $hold[0])
+                    : self::choice(array_keys($question['criteria']), $m[3] === mb_strtolower($hold[0]) ? self::labelled($question['criteria'], $hold[1] ?? null) : (string) array_key_first($question['criteria']));
+
+                continue;
+            }
             $answers[$name] = match (true) {
                 $question['type'] === 'noul' => ['noul' => $scripted['plan'][(int) mb_substr($name, 4)] ?? 0.1],
                 $name === 'operation' => self::choice(array_keys($question['criteria']), $operation),
+                // A sub-goal with nothing scripted holds WAIT, which is never acted on later.
+                str_ends_with($name, '_operation') && isset($question['criteria']['WAIT']) => self::choice(array_keys($question['criteria']), 'WAIT'),
                 $name === mb_strtolower($operation) . '_target' => self::choice(array_keys($question['criteria']), self::labelled($question['criteria'], $label)),
                 default => self::choice(array_keys($question['criteria']), (string) array_key_first($question['criteria'])),
             };

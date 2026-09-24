@@ -132,7 +132,8 @@ final class Agent
             if (! $this->state->stopped()) {
                 $this->act();
             }
-        } catch (StalePage) {
+        } catch (StalePage $stale) {
+            $this->state->stale[] = ['after_step' => count($this->state->history), 'reason' => mb_substr($stale->getMessage(), 0, 200)];
             $this->state->decision = null;
             $this->state->status = 'ready';
             $this->state->page = $this->visible($this->settler()->readable());
@@ -234,10 +235,43 @@ final class Agent
         }
         $action = $page->action($decision->choice);
         match (true) {
+            $action === null && $decision->choice === 'DONE' && $this->unsatisfied() !== [] => $this->doubleCheck($page),
             $action === null => $this->conclude($decision->choice, $page),
             count($state->history) >= $this->options->maxSteps => $this->stop('budget'),
             default => $this->execute($decision, $action, $page),
         };
+    }
+
+    /**
+     * DONE arrived while a tracked sub-goal reads unsatisfied. Satisfaction readings are too noisy
+     * to overrule DONE, so one more decision is taken with the first unsatisfied sub-goal as the
+     * goal. A second DONE stops the run done, recording the sub-goals never confirmed; anything
+     * else is acted on.
+     */
+    private function doubleCheck(Observation $page): void
+    {
+        if (! $this->settledOrRestless($page)) {
+            throw new StalePage('Page changed since the decision. Choose again.');
+        }
+        $state = $this->state;
+        $state->decisionCalls++;
+        $decision = $this->decider->choose($page, $state->plan[$this->unsatisfied()[0]], $state->history, [], Fixation::of($state->history));
+        $state->decisions[] = $decision;
+        $action = $page->action($decision->choice);
+        if ($decision->choice === 'DONE') {
+            $state->unconfirmed = $this->unsatisfied();
+        }
+        $action === null ? $this->conclude($decision->choice, $page) : $this->execute($decision, $action, $page);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function unsatisfied(): array
+    {
+        return $this->options->trackPlan && count($this->state->plan) > 1
+            ? array_values(array_diff(array_keys($this->state->plan), $this->state->planSatisfied))
+            : [];
     }
 
     private function conclude(string $choice, Observation $page): void
@@ -283,6 +317,8 @@ final class Agent
             textModel: $spent['model'] ?? null,
             textLatencyMs: $spent['latency_ms'] ?? 0,
             usage: $decision->usage,
+            decidedBy: $decision->model,
+            reusedFor: $decision->reusedFor,
             note: $execution->status === ExecutionStatus::Altered ? $execution->reason : null,
             submits: $action->submits,
             node: $action->node,
@@ -336,6 +372,7 @@ final class Agent
     {
         foreach ($outstanding as $position => $index) {
             $satisfied = $decision->plan[$position]->satisfied ?? null;
+            $this->state->satisfaction[$index] = $satisfied ?? $this->state->satisfaction[$index] ?? null;
             if ($satisfied !== null && $satisfied >= self::PLAN_SATISFIED && ! in_array($index, $this->state->planSatisfied, true)) {
                 $this->state->planSatisfied[] = $index;
             }

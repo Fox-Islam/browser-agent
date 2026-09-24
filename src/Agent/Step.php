@@ -42,6 +42,8 @@ final class Step
         public readonly ?string $note = null,
         public readonly bool $submits = false,
         public readonly ?int $node = null,
+        public readonly string $decidedBy = '',
+        public readonly ?int $reusedFor = null,
     ) {}
 
     /**
@@ -81,6 +83,8 @@ final class Step
             'text_model' => $this->textModel,
             'text_latency_ms' => $this->textLatencyMs,
             'usage' => $this->usage,
+            'decided_by' => $this->decidedBy,
+            'reused_for' => $this->reusedFor,
             'elapsed_ms' => $this->elapsedMs,
         ];
     }

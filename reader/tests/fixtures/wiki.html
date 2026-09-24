@@ -1,0 +1,8 @@
+<!doctype html>
+<html><head><title>Wiki</title><style>input, button, a { display: block; margin: 6px; }</style></head>
+<body>
+<h1 id="heading">Main page</h1>
+<input aria-label="Search" id="q">
+<button id="go" onclick="document.getElementById('heading').textContent = 'Article: ' + document.getElementById('q').value">Go</button>
+<a href="#history" onclick="document.getElementById('heading').textContent = 'History of ' + document.getElementById('heading').textContent; return false;">View history</a>
+</body></html>

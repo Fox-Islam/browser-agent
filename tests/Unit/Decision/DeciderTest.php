@@ -99,7 +99,7 @@ it('never offers a suppressed control', function (): void {
 });
 
 it('asks a satisfaction check and a full decision per outstanding sub-goal, and reads them', function (): void {
-    $models = new FakeModels([['TYPE_TEXT', 'plan' => [0 => 0.95, 1 => 0.05]]]);
+    $models = new FakeModels([['TYPE_TEXT', 'plan' => [0 => 0.95, 1 => 0.05], 'holds' => [0 => ['CLICK', 'Open Name']]]]);
 
     $decision = decider($models)->choose(observed(formControls()), "Enter the name\nChoose large", [], ['Enter the name', 'Choose large']);
     $questions = $models->decisionRequests()[0]['questions'];

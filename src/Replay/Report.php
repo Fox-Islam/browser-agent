@@ -47,6 +47,7 @@ final class Report
             ],
             'operations' => array_map(fn (float $p) => round($p, 3), $last->operationProbabilities ?? []),
             'reason' => $state->reason,
+            ...self::subGoals($state),
             'evidence' => $state->evidence,
             'refused_url' => $state->refusedUrl,
             'faults' => $state->faults,
@@ -59,6 +60,30 @@ final class Report
         $text = trim((string) preg_replace('/\s+/u', ' ', (string) $text));
 
         return mb_strlen($text) <= $length ? $text : mb_substr($text, 0, $length - 1) . '…';
+    }
+
+    /**
+     * With sub-goals tracked, each one's latest satisfaction reading and the goals a done run
+     * stopped without confirming.
+     *
+     * @return array{sub_goals?: list<array{goal: string, satisfaction: float|null, satisfied: bool}>, unconfirmed?: list<string>}
+     */
+    private static function subGoals(RunState $state): array
+    {
+        if (count($state->plan) < 2) {
+            return [];
+        }
+        $goals = [];
+        foreach ($state->plan as $index => $goal) {
+            $reading = $state->satisfaction[$index] ?? null;
+            $goals[] = [
+                'goal' => $goal,
+                'satisfaction' => $reading === null ? null : round($reading, 3),
+                'satisfied' => in_array($index, $state->planSatisfied, true),
+            ];
+        }
+
+        return ['sub_goals' => $goals, 'unconfirmed' => array_map(fn (int $i) => $state->plan[$i], $state->unconfirmed)];
     }
 
     /**

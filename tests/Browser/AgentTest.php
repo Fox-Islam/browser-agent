@@ -301,3 +301,57 @@ it('keeps the run so far when the caller stops it from the heartbeat', function 
         ->and(fn () => $agent->run($this->chrome->base . '/execute.html'))->toThrow(RuntimeException::class, 'Deadline reached')
         ->and(array_column(Report::of($agent->state())['steps'], 'label'))->toBe(['Go', 'Clicked 1']);
 });
+
+it('does not let a later sub-goal held action jump ahead of the earlier ones', function (): void {
+    $models = new FakeModels([
+        ['TYPE_TEXT', 'Search', 'holds' => [0 => ['WAIT'], 1 => ['WAIT'], 2 => ['CLICK', 'View history']]],
+        ['CLICK', 'Go', 'plan' => [0 => 0.95], 'holds' => [1 => ['WAIT'], 2 => ['CLICK', 'View history']]],
+        ['CLICK', 'View history', 'plan' => [0 => 0.95]],
+        ['DONE', 'plan' => [0 => 0.95]],
+    ], ['Search' => 'Eiffel Tower']);
+
+    $state = runAgent($models, [
+        'goals' => ['Search for Eiffel Tower', 'Open its article', 'Open the View history page of the article'],
+        'trackPlan' => true,
+        'readOnly' => false,
+    ], 'wiki.html');
+
+    expect(array_map(fn ($s) => [$s->label, $s->decidedBy], $state->history))->toBe([
+        ['Search', 'jev-test'], ['Go', 'jev-test'], ['View history', 'jev-test'],
+    ])
+        ->and(LocalChrome::run($this->tab->session, 'document.getElementById("heading").textContent'))->toBe('History of Article: Eiffel Tower')
+        ->and($state->status)->toBe('done');
+});
+
+it('takes one more decision when DONE arrives with a sub-goal unsatisfied, and reports it unconfirmed', function (): void {
+    $models = new FakeModels([
+        ['DONE', 'plan' => [0 => 0.95, 1 => 0.2]],
+        ['DONE'],
+    ]);
+
+    $state = runAgent($models, ['goals' => ['Find the Go button', 'Find the pricing table'], 'trackPlan' => true], 'wiki.html');
+    $report = Report::of($state);
+
+    expect($state->status)->toBe('done')
+        ->and($state->decisionCalls)->toBe(2)
+        ->and($models->decisionRequests()[1]['questions']['operation']['instructions'])->toStartWith('Goal: Find the pricing table')
+        ->and($report['unconfirmed'])->toBe(['Find the pricing table'])
+        ->and($report['sub_goals'])->toBe([
+            ['goal' => 'Find the Go button', 'satisfaction' => 0.95, 'satisfied' => true],
+            ['goal' => 'Find the pricing table', 'satisfaction' => 0.2, 'satisfied' => false],
+        ]);
+});
+
+it('acts on the extra decision when it answers with an action instead of DONE', function (): void {
+    $models = new FakeModels([
+        ['DONE', 'plan' => [0 => 0.95, 1 => 0.2]],
+        ['CLICK', 'View history'],
+        ['DONE', 'plan' => [0 => 0.95]],
+    ]);
+
+    $state = runAgent($models, ['goals' => ['Find the Go button', 'Open the history'], 'trackPlan' => true], 'wiki.html');
+
+    expect(array_map(fn ($s) => $s->label, $state->history))->toBe(['View history'])
+        ->and($state->status)->toBe('done')
+        ->and($state->unconfirmed)->toBe([]);
+});
