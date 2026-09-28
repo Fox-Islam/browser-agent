@@ -10,6 +10,12 @@ namespace Phox\BrowserAgent\Decision;
  */
 final readonly class ModelConfig
 {
+    public const string TYPESAFE_DECISION_PATH = '/v1/systemone';
+
+    public const string OPENROUTER_BASE_URL = 'https://openrouter.ai';
+
+    public const string OPENROUTER_DECISION_PATH = '/api/alpha/decisions';
+
     public function __construct(
         public string $typesafeKey,
         public string $typesafeBaseUrl = 'https://api.typesafe.ai',
@@ -19,14 +25,16 @@ final readonly class ModelConfig
         public string $textModel = 'deepseek-chat',
         public bool $textReasoning = true,
         public float $timeout = 25.0,
+        public string $decisionPath = self::TYPESAFE_DECISION_PATH,
     ) {}
 
     /**
      * Any server implementing /v1/systemone answers a decision, so a local one is a base URL.
+     * OpenRouter answers the same request body at its own path, keyed by an OpenRouter key.
      */
     public function decisionUrl(): string
     {
-        return rtrim($this->typesafeBaseUrl, '/') . '/v1/systemone';
+        return rtrim($this->typesafeBaseUrl, '/') . '/' . ltrim($this->decisionPath, '/');
     }
 
     public function textUrl(): string

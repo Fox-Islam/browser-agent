@@ -34,6 +34,10 @@ $report = Report::of($agent->run('https://example.com'));
 $tab->close();
 ```
 
+Decisions go to TypeSafe's `/v1/systemone` by default. OpenRouter answers the same request at its
+own path with an OpenRouter key:
+`new ModelConfig(typesafeKey: $openRouterKey, typesafeBaseUrl: ModelConfig::OPENROUTER_BASE_URL, decisionPath: ModelConfig::OPENROUTER_DECISION_PATH)`.
+
 A run is read-only unless `AgentOptions` sets `readOnly: false`: it may click to navigate or
 reveal, but is offered nothing that types, selects or submits. A run ends `done`, `blocked` (with
 `reason` `not_found` or `stuck`), `budget` or `off_site`. `Script::of($state)` records what it did
