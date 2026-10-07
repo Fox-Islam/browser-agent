@@ -7,7 +7,7 @@ namespace Phox\BrowserAgent\Decision;
 use Phox\BrowserAgent\Reader\Action;
 
 /**
- * What a read-only run may do: click to navigate or reveal, never type, select or submit. Other
+ * What a read-only run may do: click to navigate or reveal, never type, select, drag or submit. Other
  * controls stay in the observation, marked unavailable, so the model can tell they exist, but no
  * target head offers them, so they cannot be chosen however the goal is worded. A form submitter
  * is known from the reader; a button that posts through JavaScript is not, so its label is the
@@ -35,7 +35,7 @@ final class ReadOnlyActions
 
     public static function writes(Action $action): bool
     {
-        return in_array($action->kind, ['fill', 'select'], true)
+        return in_array($action->kind, ['fill', 'select', 'drag', 'drop'], true)
             || ($action->kind === 'click' && ($action->submits || self::submits($action->label)));
     }
 

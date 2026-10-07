@@ -85,8 +85,14 @@ it('does nothing on a stale page', function (array $page, string $reason): void 
     'page key changed' => [['pageKey' => 'other'], 'the page changed'],
     'guard changed' => [['guard' => 'other'], 'the control changed'],
     'control gone' => [['guard' => null], 'the control changed'],
-    'control covered' => [['blocker' => '<div#banner> "Accept cookies"'], 'in the way: <div#banner> "Accept cookies"'],
 ]);
+
+it('sends nothing when something covers the control, and reports it covered', function (): void {
+    $cdp = executorPage(['blocker' => '<div#banner> "Accept cookies"']);
+
+    expect(run($cdp, control()))->toEqual(Execution::covered('in the way: <div#banner> "Accept cookies"'))
+        ->and(inputCalls($cdp))->toBe([]);
+});
 
 it('fills a text control by clicking, selecting all and inserting the text', function (): void {
     $cdp = executorPage();
@@ -191,3 +197,89 @@ it('refuses to act on a document-mode observation', function (): void {
         ->toThrow(InvalidArgumentException::class, 'A document-mode observation is for reading, not acting on')
         ->and($cdp->calls)->toBe([]);
 });
+
+it('hovers a control shown under the pointer and presses it once it appears', function (): void {
+    $cdp = executorPage(['opaque' => true]);
+    $action = new Action(id: 'e1', kind: 'click', label: 'Remove file', node: 7, role: 'button', rect: new Rect(100, 200, 50, 20), hover: true);
+
+    expect(run($cdp, $action))->toEqual(Execution::done())
+        ->and(readerCalls($cdp))->toBe(['pageReader.pageKey()', 'pageReader.guard(7)', 'pageReader.opaque(7, 600)', 'pageReader.blocker(7, 125, 210)'])
+        ->and(array_column(array_column(inputCalls($cdp), 'params'), 'type'))->toBe(['mouseMoved', 'mouseMoved', 'mousePressed', 'mouseReleased']);
+});
+
+it('presses nothing when a hover control does not appear', function (): void {
+    $cdp = executorPage(['opaque' => false]);
+    $action = new Action(id: 'e1', kind: 'click', label: 'Remove file', node: 7, role: 'button', rect: new Rect(100, 200, 50, 20), hover: true);
+
+    expect(run($cdp, $action))->toEqual(Execution::covered('the control did not appear under the pointer'))
+        ->and(array_column(array_column(inputCalls($cdp), 'params'), 'type'))->toBe(['mouseMoved']);
+});
+
+it('brings a control out of view in a panel into view and presses it where it lands', function (): void {
+    $cdp = executorPage(['reveal' => ['x' => 300, 'y' => 400, 'w' => 40, 'h' => 20]]);
+    $action = new Action(id: 'e1', kind: 'click', label: 'Create folder', node: 7, role: 'button', rect: new Rect(100, 900, 50, 20), offscreen: 'panel');
+
+    expect(run($cdp, $action))->toEqual(Execution::done())
+        ->and(readerCalls($cdp))->toContain('pageReader.blocker(7, 320, 410)')
+        ->and(inputCalls($cdp)[1]['params'])->toMatchArray(['type' => 'mousePressed', 'x' => 320.0, 'y' => 410.0]);
+});
+
+it('reports covered, pressing nothing, when a panel control will not come into view', function (): void {
+    $cdp = executorPage(['reveal' => null]);
+    $action = new Action(id: 'e1', kind: 'click', label: 'Create folder', node: 7, role: 'button', rect: new Rect(100, 900, 50, 20), offscreen: 'panel');
+
+    expect(run($cdp, $action))->toEqual(Execution::covered('the control would not come into view'))
+        ->and(inputCalls($cdp))->toBe([]);
+});
+
+/**
+ * A drag from node 7 to a zone at node 8, with drags intercepted when $native says so.
+ */
+function dragRun(bool $native): FakeCdpSession
+{
+    $cdp = executorPage();
+    $cdp->on('Input.dispatchMouseEvent', function (array $params) use ($cdp, $native): array {
+        if ($native && $params['type'] === 'mouseMoved' && ($params['buttons'] ?? 0) === 1) {
+            $cdp->emit('Input.dragIntercepted', ['data' => ['items' => [['mimeType' => 'text/plain', 'data' => 'task-7']], 'dragOperationsMask' => 1]]);
+        }
+
+        return [];
+    });
+    $source = new Action(id: 'e1', kind: 'drag', label: 'Task', node: 7, role: 'generic', rect: new Rect(100, 200, 50, 20));
+    $zone = new Action(id: 'e2', kind: 'drop', label: 'Done', node: 8, role: 'region', rect: new Rect(400, 200, 100, 100));
+    $observation = new Observation('https://example.test/', 'T', 1000, 800, 0, 800, '', [$source, $zone], 0, 'key', [7 => 'guard', 8 => 'guard']);
+    (new Executor($cdp, new PageReader($cdp), waitSeconds: 0))->execute($observation, $source, null, $zone);
+
+    return $cdp;
+}
+
+it('finishes a native drag the browser hands back with a drop at the zone', function (): void {
+    $calls = array_map(fn ($c) => [$c['method'], $c['params']['type'] ?? $c['params']['enabled'] ?? null], inputCalls(dragRun(native: true)));
+
+    expect($calls)->toBe([
+        ['Input.setInterceptDrags', true],
+        ['Input.dispatchMouseEvent', 'mousePressed'],
+        ['Input.dispatchMouseEvent', 'mouseMoved'],
+        ['Input.dispatchDragEvent', 'dragEnter'],
+        ['Input.dispatchDragEvent', 'dragOver'],
+        ['Input.dispatchDragEvent', 'drop'],
+        ['Input.dispatchMouseEvent', 'mouseReleased'],
+        ['Input.setInterceptDrags', false],
+    ]);
+});
+
+it('moves a pointer drag all the way to the zone before letting go', function (): void {
+    $moves = array_values(array_filter(inputCalls(dragRun(native: false)), fn ($c) => ($c['params']['type'] ?? null) === 'mouseMoved'));
+    $release = array_values(array_filter(inputCalls(dragRun(native: false)), fn ($c) => ($c['params']['type'] ?? null) === 'mouseReleased'))[0];
+
+    expect(count($moves))->toBe(12)
+        ->and([end($moves)['params']['x'], end($moves)['params']['y']])->toBe([450.0, 250.0])
+        ->and([$release['params']['x'], $release['params']['y']])->toEqual([450, 250]);
+});
+
+it('refuses a drag with no drop zone', function (): void {
+    $cdp = executorPage();
+    $source = new Action(id: 'e1', kind: 'drag', label: 'Task', node: 7, role: 'generic', rect: new Rect(100, 200, 50, 20));
+
+    run($cdp, $source);
+})->throws(InvalidArgumentException::class, 'needs a drop zone');

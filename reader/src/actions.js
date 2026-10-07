@@ -1,7 +1,7 @@
 import { isEditingHost, roleOf, TYPABLE_INPUTS } from './controls.js';
 import { collapse } from './dom.js';
 import { handleOf } from './handles.js';
-import { accessibleName } from './names.js';
+import { labelOf } from './labels.js';
 import { isPrivate } from './private.js';
 
 const CHECKABLE_ROLES = new Set(['checkbox', 'radio', 'switch', 'menuitemcheckbox', 'menuitemradio']);
@@ -31,7 +31,7 @@ const SECONDS_IN_A_MINUTE = 60;
 // guard describe the same state.
 export function describe(el, maxLabel) {
     const role = roleOf(el);
-    const name = cut(accessibleName(el), maxLabel);
+    const name = cut(labelOf(el), maxLabel);
 
     return {
         role,

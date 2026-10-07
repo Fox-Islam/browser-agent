@@ -1,7 +1,7 @@
 import { isSettable } from './actions.js';
 import { locateNow } from './controls.js';
 import { collapse, containsComposed, frameDocument } from './dom.js';
-import { frameOf } from './geometry.js';
+import { frameOf, rounded } from './geometry.js';
 import { resolve } from './handles.js';
 
 // Null when the element at a top-viewport point is the control, its label or its stand-in, or
@@ -16,6 +16,40 @@ export function blocker(node, x, y) {
     const targets = [el, located.target, ...(el.labels ?? [])];
 
     return hit && targets.some((target) => containsComposed(target, hit)) ? null : describeElement(hit);
+}
+
+// Brings an element out of view inside a scrolling panel into view, and returns where its click
+// target sits now. Instant, so a page with smooth scrolling has finished moving when this returns.
+export function reveal(node) {
+    const el = resolve(node);
+    const before = el ? locateNow(el) : null;
+    if (!before) {
+        return null;
+    }
+    before.target.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+    const after = locateNow(el);
+
+    return after && !after.offscreen ? rounded(after.rect) : null;
+}
+
+// Resolves true once the element is fully visible, opacity included, or false at the timeout. A
+// control revealed on hover fades in once the pointer is over it.
+export function opaque(node, timeout) {
+    const began = performance.now();
+
+    return new Promise((done) => {
+        const look = () => {
+            const el = resolve(node);
+            if (el?.checkVisibility({ opacityProperty: true, visibilityProperty: true })) {
+                done(true);
+            } else if (!el || performance.now() - began >= timeout) {
+                done(false);
+            } else {
+                setTimeout(look, 50);
+            }
+        };
+        look();
+    });
 }
 
 // Sets a select's or value input's value as a user's choice would, fires input and change, and

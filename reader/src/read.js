@@ -8,6 +8,10 @@ import { fitDocument } from './budget.js';
 import { isScreenReaderOnly } from './hidden.js';
 import { headingEntry, headingLevel, headingShows } from './outline.js';
 import { guardOf, pageKeyOf } from './keys.js';
+import { contextLabel } from './context.js';
+import { containingLabel } from './labels.js';
+import { dragActions } from './drag.js';
+import { busyCount } from './busy.js';
 
 // Elements whose children are never rendered as page text.
 const OPAQUE = new Set(['head', 'script', 'style', 'noscript', 'template', 'select', 'textarea', 'datalist']);
@@ -24,6 +28,7 @@ export function read(options) {
     const text = scan.finishText();
     const outline = scan.outline.slice(0, options.max_outline);
     const { actions, omitted, guards } = buildActions(scan.controls, options, whole);
+    const dragging = whole ? { actions: [], guards: {} } : dragActions(options, scan.frames);
     const common = {
         url: location.href,
         title: document.title,
@@ -41,16 +46,17 @@ export function read(options) {
         ...common,
         outline,
         text,
-        actions: [...numbered(actions), ...pageActions(options.scroll_step)],
+        actions: [...numbered([...actions, ...dragging.actions]), ...pageActions(options.scroll_step)],
         omitted_actions: omitted,
         page_key: pageKeyOf(),
-        guards,
+        guards: { ...guards, ...dragging.guards },
+        busy: busyCount(scan.lines, scan.frames),
     };
 }
 
 // A document-mode action describes what the page offers and nothing needed to act: no id, rect or
 // form, and no empty value or false submits. The node stays so a caller query can reach it.
-const DESCRIBING = ['node', 'kind', 'role', 'label', 'value', 'current_value', 'omitted_options', 'href', 'required', 'format', 'min', 'max', 'step', 'checked', 'selected', 'expanded', 'submits'];
+const DESCRIBING = ['node', 'kind', 'role', 'label', 'context', 'value', 'current_value', 'omitted_options', 'href', 'required', 'format', 'min', 'max', 'step', 'checked', 'selected', 'expanded', 'submits'];
 
 function describing(action) {
     const kept = {};
@@ -68,37 +74,70 @@ function numbered(actions) {
     return actions.map((action, i) => ({ id: `e${i + 1}`, ...action }));
 }
 
-// Document mode keeps no guards.
+// Document mode keeps no guards. Controls out of view in a scrolling panel come after the
+// on-screen ones, so max_actions drops them first.
 function buildActions(controls, options, whole) {
-    const frames = new Map();
-    const modals = new Map();
+    const found = locateAll(controls, whole);
+    const ordered = [...found.filter((f) => !f.located.offscreen), ...found.filter((f) => f.located.offscreen)];
+    const kept = ordered.slice(0, options.max_actions).map((f) => ({ ...f, info: describe(f.el, options.max_label) }));
+    const shared = sharedLabels(kept.map((f) => f.info.label));
     const actions = [];
     const guards = {};
-    let kept = 0;
-    let omitted = 0;
+    for (const { el, located, info } of kept) {
+        const node = handleOf(el);
+        const marks = marksOf(el, located, shared.has(info.label), options.max_label);
+        actions.push(...actionsFor(el, info, rounded(located.rect), node, options).map((action) => ({ ...action, ...marks })));
+        if (!whole) {
+            guards[node] = guardOf(el, node, info, located.target);
+        }
+    }
+
+    return { actions, omitted: ordered.length - kept.length, guards };
+}
+
+function locateAll(controls, whole) {
+    const frames = new Map();
+    const modals = new Map();
+    const found = [];
     for (const el of controls) {
         const doc = el.ownerDocument;
         if (!modals.has(doc)) {
             modals.set(doc, modalOf(doc));
         }
         const located = locate(el, frameOf(doc, frames, whole), modals.get(doc));
-        if (!located) {
-            continue;
-        }
-        if (kept === options.max_actions) {
-            omitted++;
-            continue;
-        }
-        kept++;
-        const node = handleOf(el);
-        const info = describe(el, options.max_label);
-        actions.push(...actionsFor(el, info, rounded(located.rect), node, options));
-        if (!whole) {
-            guards[node] = guardOf(el, node, info, located.target);
+        if (located) {
+            found.push({ el, located });
         }
     }
 
-    return { actions, omitted, guards };
+    return found;
+}
+
+function sharedLabels(labels) {
+    const seen = new Set();
+    const shared = new Set();
+    for (const label of labels) {
+        (seen.has(label) ? shared : seen).add(label);
+    }
+
+    return shared;
+}
+
+// What the model needs to tell this control from others, and how the executor reaches it.
+function marksOf(el, located, labelShared, maxLabel) {
+    const marks = {};
+    if (located.hover) {
+        marks.hover = true;
+    }
+    if (located.offscreen) {
+        marks.offscreen = located.offscreen;
+    }
+    const context = labelShared ? cut(contextLabel(el) || containingLabel(el), maxLabel) : '';
+    if (context !== '') {
+        marks.context = context;
+    }
+
+    return marks;
 }
 
 function scrollState() {

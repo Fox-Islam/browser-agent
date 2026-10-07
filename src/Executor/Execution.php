@@ -26,6 +26,11 @@ final readonly class Execution
         return new self(ExecutionStatus::Rejected, $reason);
     }
 
+    public static function covered(string $reason): self
+    {
+        return new self(ExecutionStatus::Covered, $reason);
+    }
+
     public static function altered(string $reason): self
     {
         return new self(ExecutionStatus::Altered, $reason);

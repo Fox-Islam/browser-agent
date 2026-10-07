@@ -23,6 +23,11 @@ final readonly class SettleTimings
      *                             animation frames, so an opening menu has begun changing the page
      *                             by the time it is looked at
      * @param  float  $scroll  longest to wait for a wheel scroll to move the page and stop
+     * @param  float  $arrival  longest an arriving page may keep fetching or showing a loading
+     *                          state before it is read anyway. A page's own permanent spinner
+     *                          costs this once per address, then becomes its floor.
+     * @param  float  $longRequest  a fetch open this long is a stream or a long poll, not content
+     *                              on its way
      */
     public function __construct(
         public float $timeout = 1.5,
@@ -32,6 +37,8 @@ final readonly class SettleTimings
         public float $navigation = 15.0,
         public float $afterInput = 0.05,
         public float $scroll = 0.3,
+        public float $arrival = 5.0,
+        public float $longRequest = 10.0,
     ) {}
 
     public function stillMs(): int

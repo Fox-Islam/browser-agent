@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Phox\BrowserAgent\Decision;
 
 /**
- * One chosen step: an action id from the observation, or DONE or BLOCKED.
+ * One chosen step: an action id from the observation, or DONE or BLOCKED. A drag also names its
+ * drop zone.
  */
 final readonly class Decision
 {
@@ -15,6 +16,7 @@ final readonly class Decision
      * @param  list<PlanReading>  $plan  one reading per outstanding sub-goal, in the order asked
      * @param  array<string, mixed>  $usage
      * @param  int|null  $reusedFor  the sub-goal a held decision was taken for
+     * @param  string|null  $drop  for a drag, the action id of the drop zone it ends on
      */
     public function __construct(
         public string $choice,
@@ -28,6 +30,7 @@ final readonly class Decision
         public array $usage = [],
         public int $latencyMs = 0,
         public ?int $reusedFor = null,
+        public ?string $drop = null,
     ) {}
 
     public function probability(): float

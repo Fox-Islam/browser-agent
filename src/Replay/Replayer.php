@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Phox\BrowserAgent\Replay;
 
 use Closure;
+use Phox\BrowserAgent\Agent\Arrival;
 use Phox\BrowserAgent\Agent\Settler;
 use Phox\BrowserAgent\Agent\SettleTimings;
 use Phox\BrowserAgent\Cdp\BrowserTab;
@@ -104,7 +105,11 @@ final readonly class Replayer
     {
         $label = trim((string) ($step['label'] ?? ''));
         $kind = (string) ($step['kind'] ?? '');
-        $found = array_values(array_filter($page->actions, fn (Action $a) => trim($a->label) === $label && $a->kind === $kind));
+        $context = $step['context'] ?? null;
+        $found = array_values(array_filter(
+            $page->actions,
+            fn (Action $a) => trim($a->label) === $label && $a->kind === $kind && ($context === null || $a->context === $context),
+        ));
         if (count($found) === 1) {
             return $found[0];
         }
@@ -148,7 +153,9 @@ final readonly class Replayer
     private function steps(CdpSession $session, array $script, ?Closure $onStep, array &$done): void
     {
         $reader = new PageReader($session, $this->reading);
-        $settler = new Settler($reader, $session, $this->timings);
+        $arrival = new Arrival($this->timings->longRequest);
+        $arrival->watch($session);
+        $settler = new Settler($reader, $session, $this->timings, $arrival);
         $executor = new Executor($session, $reader, waitSeconds: 0.1);
         $started = microtime(true);
         $page = $settler->settle(stabilise: true);
@@ -182,15 +189,18 @@ final readonly class Replayer
     private function step(Executor $executor, Settler $settler, Observation &$page, array $step, int $number): ?string
     {
         for ($attempt = 1; ; $attempt++) {
-            $execution = $executor->execute($page, self::control($page, $step, $number), $step['text'] ?? null);
-            if ($execution->status !== ExecutionStatus::Stale || $attempt === self::STEP_ATTEMPTS) {
+            $drop = isset($step['drop']) ? self::control($page, ['kind' => 'drop', 'label' => $step['drop']], $number) : null;
+            $execution = $executor->execute($page, self::control($page, $step, $number), $step['text'] ?? null, $drop);
+            // Stale and covered both mean nothing was sent, so the step is matched again.
+            $retry = in_array($execution->status, [ExecutionStatus::Stale, ExecutionStatus::Covered], true);
+            if (! $retry || $attempt === self::STEP_ATTEMPTS) {
                 break;
             }
             $page = $settler->settle(stabilise: true);
         }
 
         return match ($execution->status) {
-            ExecutionStatus::Stale => throw new ReplayException("Step {$number} kept changing under the replay: {$execution->reason}"),
+            ExecutionStatus::Stale, ExecutionStatus::Covered => throw new ReplayException("Step {$number} kept changing under the replay: {$execution->reason}"),
             ExecutionStatus::Rejected => throw new ReplayException("Step {$number} was refused: {$execution->reason}"),
             default => $execution->reason,
         };

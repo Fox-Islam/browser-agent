@@ -58,6 +58,15 @@ final class Prompts
 
     public const string OPERATION_SELECT = 'Select an observed dropdown value.';
 
+    public const string OPERATION_DRAG = 'Drag an element and drop it onto an area or another element.';
+
+    public const string DROP = <<<'TEXT'
+        Choose where the dragged element should be dropped if the next operation is a drag.
+        Use the user's entire goal: the destination it names, such as a column, a list, a canvas or another
+        element. This question chooses only the destination; another chooses what is dragged. Choose only an
+        offered zone index.
+        TEXT;
+
     public const string OPERATION_DONE = 'Every requirement is visibly satisfied.';
 
     public const string OPERATION_BLOCKED = 'No supported operation can progress.';

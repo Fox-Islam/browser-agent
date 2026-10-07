@@ -65,7 +65,8 @@ final class HeldDecisions
 
     private function applicable(RunState $state, PlanReading $reading): ?Action
     {
-        if (in_array($reading->operation, ['DONE', 'BLOCKED', 'WAIT'], true)) {
+        // A held drag names what to drag and not where to; only a fresh decision asks that.
+        if (in_array($reading->operation, ['DONE', 'BLOCKED', 'WAIT', 'DRAG'], true)) {
             return null;
         }
         $matches = array_values(array_filter($state->page->actions, fn (Action $a) => $a->available && $a->label === $reading->label && $a->kind === $reading->kind));

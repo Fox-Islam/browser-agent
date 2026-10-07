@@ -22,6 +22,9 @@ final class PageReader
 
     private ?int $context = null;
 
+    /** The address drop handlers were last looked for at; they are looked for once per address. */
+    private ?string $handlersLookedFor = null;
+
     public function __construct(
         private readonly CdpSession $cdp,
         private readonly ReaderOptions $options = new ReaderOptions,
@@ -74,6 +77,28 @@ final class PageReader
     }
 
     /**
+     * Brings a control out of view inside a scrolling panel into view and returns its click rect,
+     * or null when it is still out of reach. Scrolling a panel changes no form value and no page
+     * key, so it is safe to do before the checks that guard an input.
+     */
+    public function reveal(int $node): ?Rect
+    {
+        $rect = $this->evaluate("pageReader.reveal({$node})", byValue: true)['value'] ?? null;
+
+        return is_array($rect) ? Rect::fromArray($rect) : null;
+    }
+
+    /**
+     * Waits in the page, up to $timeoutMs, for the element to be fully visible, opacity included.
+     */
+    public function opaque(int $node, int $timeoutMs): bool
+    {
+        $expression = "pageReader.opaque({$node}, {$timeoutMs})";
+
+        return ($this->evaluate($expression, byValue: true, awaitPromise: true, timeout: $timeoutMs / 1000 + 2)['value'] ?? false) === true;
+    }
+
+    /**
      * Sets a select's or value input's value, fires input and change, and returns the value the
      * element holds afterwards; null when it has left the document. This mutates the page, so it
      * is never repeated: a lost context fails the call.
@@ -88,22 +113,17 @@ final class PageReader
     /**
      * Runs a caller's query in the reader's world, where `el(node)` reaches an observed element and
      * page globals are out of sight. A promise is awaited. The answer is the value, or the text of
-     * what the query threw.
+     * what the query threw. A query written as a function body is run as the body of an async
+     * function.
      *
      * @return array{value: mixed}|array{exception: string}
      */
     public function query(string $expression, float $timeout): array
     {
-        try {
-            $response = $this->send($expression, byValue: true, awaitPromise: true, timeout: $timeout);
-        } catch (CdpException $e) {
-            return ['exception' => $e->getMessage()];
-        }
-        if (isset($response['exceptionDetails'])) {
-            return ['exception' => (string) self::describe($response['exceptionDetails'])];
-        }
+        $answer = $this->ask($expression, $timeout);
+        $functionBody = str_contains($answer['exception'] ?? '', 'Illegal return statement');
 
-        return ['value' => $response['result']['value'] ?? null];
+        return $functionBody ? $this->ask("(async () => {\n{$expression}\n})()", $timeout) : $answer;
     }
 
     /**
@@ -204,12 +224,52 @@ final class PageReader
         return $response['result'];
     }
 
+    /**
+     * @return array{value: mixed}|array{exception: string}
+     */
+    private function ask(string $expression, float $timeout): array
+    {
+        try {
+            $response = $this->send($expression, byValue: true, awaitPromise: true, timeout: $timeout);
+        } catch (CdpException $e) {
+            return ['exception' => $e->getMessage()];
+        }
+        if (isset($response['exceptionDetails'])) {
+            return ['exception' => (string) self::describe($response['exceptionDetails'])];
+        }
+
+        return ['value' => $response['result']['value'] ?? null];
+    }
+
     private function readWith(ReaderOptions $reading): ?Observation
     {
         $options = json_encode($reading->toArray(), JSON_THROW_ON_ERROR);
         $result = $this->evaluate("pageReader.read({$options})", byValue: true);
+        $observation = ($result['value'] ?? null) === null ? null : Observation::fromArray($result['value']);
 
-        return ($result['value'] ?? null) === null ? null : Observation::fromArray($result['value']);
+        return $observation !== null && $this->looksForHandlers($observation) && $this->markDropHandlers() > 0
+            ? $this->readWith($reading)
+            : $observation;
+    }
+
+    /**
+     * Drop handlers matter only to a page with something to drag, and are looked for once per
+     * address: each lookup is several round trips.
+     */
+    private function looksForHandlers(Observation $observation): bool
+    {
+        $dragging = array_filter($observation->actions, fn (Action $a) => $a->kind === 'drag') !== [];
+        if (! $dragging || $this->handlersLookedFor === $observation->url) {
+            return false;
+        }
+        $this->handlersLookedFor = $observation->url;
+
+        return true;
+    }
+
+    private function markDropHandlers(): int
+    {
+        return (new DropHandlers($this->cdp))->mark($this->context ?? $this->install());
     }
 
     /**

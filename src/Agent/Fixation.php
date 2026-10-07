@@ -21,12 +21,16 @@ final class Fixation
      * same control did: a control that redraws the same result changes the page each time without
      * getting anywhere.
      *
+     * A control refused as covered sent nothing and so left no step, and counts here through
+     * $refused: label and kind pairs with how many times each was refused since the last step.
+     *
      * @param  list<Step>  $history
+     * @param  array<string, int>  $refused  json-encoded label and kind pair => refusals
      * @return list<array{string, string}> label and kind pairs
      */
-    public static function of(array $history): array
+    public static function of(array $history, array $refused = []): array
     {
-        $counts = [];
+        $counts = $refused;
         foreach (array_slice($history, -self::WINDOW) as $step) {
             if ($step->kind !== 'wait' && ($step->pageChanged === false || self::repeatsOutcome($step, $history))) {
                 $key = json_encode([$step->label, $step->kind], JSON_THROW_ON_ERROR);

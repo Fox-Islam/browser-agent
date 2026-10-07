@@ -161,3 +161,73 @@ it('resolves a node handle to a remote object in the reader world', function ():
         ->and($reader->resolve(4))->toBeNull()
         ->and(end($cdp->calls)['params']['returnByValue'])->toBeFalse();
 });
+
+it('runs a query written as a function body as the body of an async function', function (): void {
+    $cdp = (new FakeCdpSession)
+        ->on('Page.getFrameTree', fn () => ['frameTree' => ['frame' => ['id' => 'F1']]])
+        ->on('Page.createIsolatedWorld', fn () => ['executionContextId' => 11])
+        ->on('Runtime.evaluate', fn (array $params) => match (true) {
+            str_starts_with($params['expression'], '(async () => {') => ['result' => ['value' => 3]],
+            $params['expression'] === 'const n = 3; return n' => ['exceptionDetails' => ['exception' => ['description' => 'SyntaxError: Illegal return statement']]],
+            default => ['result' => ['type' => 'undefined']],
+        });
+
+    expect((new PageReader($cdp))->query('const n = 3; return n', 5.0))->toBe(['value' => 3])
+        ->and(end($cdp->calls)['params']['expression'])->toBe("(async () => {\nconst n = 3; return n\n})()");
+});
+
+it('reports a query error that is not about its form as it came', function (): void {
+    $cdp = fakeBrowser();
+    $cdp->on('Runtime.evaluate', fn (array $params) => str_starts_with($params['expression'], 'nope')
+        ? ['exceptionDetails' => ['exception' => ['description' => 'ReferenceError: nope is not defined']]]
+        : ['result' => ['type' => 'undefined']]);
+
+    expect((new PageReader($cdp))->query('nope', 5.0))->toBe(['exception' => 'ReferenceError: nope is not defined']);
+});
+
+/**
+ * A page whose reads offer a drag source, and whose own world finds one drop handler.
+ */
+function draggingPage(): FakeCdpSession
+{
+    $payload = observationPayload();
+    $payload['actions'][0]['kind'] = 'drag';
+
+    return fakeBrowser($payload)
+        ->on('Runtime.evaluate', fn (array $params) => match (true) {
+            str_starts_with($params['expression'], 'pageReader.') => ['result' => ['type' => 'object', 'value' => $payload]],
+            str_contains($params['expression'], '__reactProps$') => ['result' => ['type' => 'object', 'objectId' => 'found']],
+            default => ['result' => ['type' => 'undefined']],
+        })
+        ->on('Runtime.getProperties', fn () => ['result' => [['name' => '0', 'value' => ['objectId' => 'main-1']], ['name' => 'length', 'value' => ['value' => 1]]]])
+        ->on('DOM.describeNode', fn () => ['node' => ['backendNodeId' => 42]])
+        ->on('DOM.resolveNode', fn () => ['object' => ['objectId' => 'world-1']])
+        ->on('Runtime.callFunctionOn', fn () => ['result' => ['value' => 1]]);
+}
+
+it('hands the drop handlers only page script can see to the reader, then reads again', function (): void {
+    $cdp = draggingPage();
+
+    (new PageReader($cdp))->read();
+    $handOver = array_values(array_filter($cdp->calls, fn ($c) => $c['method'] === 'Runtime.callFunctionOn'))[0]['params'];
+    $resolve = array_values(array_filter($cdp->calls, fn ($c) => $c['method'] === 'DOM.resolveNode'))[0]['params'];
+    $reads = array_filter($cdp->calls, fn ($c) => str_starts_with($c['params']['expression'] ?? '', 'pageReader.read('));
+
+    expect($resolve)->toMatchArray(['backendNodeId' => 42, 'executionContextId' => 11])
+        ->and($handOver['executionContextId'])->toBe(11)
+        ->and($handOver['arguments'])->toBe([['objectId' => 'world-1']])
+        ->and(count($reads))->toBe(2)
+        ->and($cdp->methods())->toContain('Runtime.releaseObjectGroup');
+});
+
+it('looks for drop handlers once per address, and never on a page with nothing to drag', function (): void {
+    $dragging = draggingPage();
+    $reader = new PageReader($dragging);
+    $reader->read();
+    $reader->read();
+    $plain = fakeBrowser(observationPayload());
+    (new PageReader($plain))->read();
+
+    expect(count(array_filter($dragging->calls, fn ($c) => $c['method'] === 'Runtime.callFunctionOn')))->toBe(1)
+        ->and($plain->methods())->not->toContain('Runtime.getProperties');
+});

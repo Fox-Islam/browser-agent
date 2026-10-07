@@ -39,9 +39,15 @@ own path with an OpenRouter key:
 `new ModelConfig(typesafeKey: $openRouterKey, typesafeBaseUrl: ModelConfig::OPENROUTER_BASE_URL, decisionPath: ModelConfig::OPENROUTER_DECISION_PATH)`.
 
 A run is read-only unless `AgentOptions` sets `readOnly: false`: it may click to navigate or
-reveal, but is offered nothing that types, selects or submits. A run ends `done`, `blocked` (with
+reveal, but is offered nothing that types, selects, drags or submits. A run that may write can also
+drag an element onto a drop zone, as a native drag or as pointer moves. A run ends `done`, `blocked` (with
 `reason` `not_found` or `stuck`), `budget` or `off_site`. `Script::of($state)` records what it did
 and `Replayer` plays that back without the model.
+
+Besides what is on screen, a run is offered controls a row or card shows only under the pointer,
+and controls out of view inside a panel that scrolls on its own; the executor hovers the one and
+scrolls the other into view before pressing. An arriving page is read once its fetches have come
+back and its loading indicators have cleared, waiting at most `SettleTimings::$arrival`.
 
 `PageReader::readDocument()` reads the whole rendered page, with an outline of its headings, to
 give a model the page as context, and `TextRendering::of($observation)` turns an observation into
@@ -54,7 +60,8 @@ works on it where it is, with goals, queries (`new AgentOptions([], $queries)`) 
 
 Queries are the caller's JavaScript, run in the reader's isolated world: they see the DOM but not
 page globals, and `el(node)` returns the element behind a node number from the latest observation,
-as listed in `Report::of` and the text rendering.
+as listed in `Report::of` and the text rendering. A query written as a function body, with
+`return`, runs as the body of an async function.
 
 ## Requirements
 

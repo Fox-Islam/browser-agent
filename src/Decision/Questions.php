@@ -79,6 +79,17 @@ final class Questions
                 $parts[] = "{$flag}: {$action->{$flag}}";
             }
         }
+        // Said, because the model cannot see either: a control that appears under the pointer, and
+        // one brought into view when used, are as usable as anything on screen.
+        if ($action->context !== null) {
+            $parts[] = 'in ' . self::quote($action->context);
+        }
+        if ($action->hover) {
+            $parts[] = 'shown when hovered';
+        }
+        if ($action->offscreen !== null) {
+            $parts[] = 'out of view inside a scrolling panel';
+        }
 
         return implode(', ', $parts) . '.';
     }

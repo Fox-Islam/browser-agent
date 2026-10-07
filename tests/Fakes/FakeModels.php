@@ -30,7 +30,8 @@ final class FakeModels
     /**
      * Each decision is an operation, the label of its target, satisfied readings per sub-goal
      * (`plan`), what each sub-goal would do (`holds`: operation and target label), and an
-     * operation to answer while the first is not offered (`else`). `plan` and `holds` are keyed by
+     * operation to answer while the first is not offered (`else`), and for a drag the label of the
+     * zone it ends on (`drop`). `plan` and `holds` are keyed by
      * position among the outstanding sub-goals, as the questions are.
      *
      * @param  list<array{0: string, 1?: string, plan?: array<int, float>, holds?: array<int, array{0: string, 1?: string}>, else?: string}>  $decisions
@@ -143,6 +144,7 @@ final class FakeModels
                 // A sub-goal with nothing scripted holds WAIT, which is never acted on later.
                 str_ends_with($name, '_operation') && isset($question['criteria']['WAIT']) => self::choice(array_keys($question['criteria']), 'WAIT'),
                 $name === mb_strtolower($operation) . '_target' => self::choice(array_keys($question['criteria']), self::labelled($question['criteria'], $label)),
+                $name === 'drop_zone' && isset($scripted['drop']) => self::choice(array_keys($question['criteria']), self::labelled($question['criteria'], $scripted['drop'])),
                 default => self::choice(array_keys($question['criteria']), (string) array_key_first($question['criteria'])),
             };
         }

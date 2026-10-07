@@ -31,7 +31,7 @@ final readonly class Decider
      */
     public function choose(Observation $page, string $goal, array $history, array $pending = [], array $suppress = []): Decision
     {
-        $space = ActionSpace::of($page->actions)->without($suppress);
+        $space = self::dragsWithZones(ActionSpace::of($page->actions)->without($suppress));
         $operations = self::operations($space);
         // Read-only runs and the resubmit guard leave controls on the page that cannot be chosen;
         // without this the model reads a goal about seeing one as blocked.
@@ -47,6 +47,7 @@ final readonly class Decider
         $settled = array_map(fn (array $c) => (string) array_key_first($c), array_filter($space->targets, fn (array $c) => count($c) === 1));
         $questions = ['operation' => Questions::choice($operations, Questions::instructions($goal, $rules))]
             + Questions::targets($goal, $space->targets, $settled, notes: $notes)
+            + self::dropQuestion($goal, $space)
             + $this->plans->questions($pending, $operations, $space->targets, $settled, $notes);
         $started = hrtime(true);
         $result = $this->client->post($this->config->decisionUrl(), $this->config->typesafeKey, [
@@ -68,11 +69,37 @@ final readonly class Decider
     }
 
     /**
+     * A drag with nowhere to end is not an operation.
+     */
+    private static function dragsWithZones(ActionSpace $space): ActionSpace
+    {
+        return $space->zones === [] && isset($space->targets['DRAG']) ? $space->withoutOperation('DRAG') : $space;
+    }
+
+    /**
+     * Where a drag ends is asked as its own head, used only when DRAG is the operation chosen.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function dropQuestion(string $goal, ActionSpace $space): array
+    {
+        if (! isset($space->targets['DRAG'])) {
+            return [];
+        }
+        $criteria = [];
+        foreach ($space->zones as $index => $zone) {
+            $criteria[(string) $index] = Questions::describe((string) $index, $zone);
+        }
+
+        return ['drop_zone' => Questions::choice($criteria, Questions::instructions($goal, [Prompts::NEXT_ACTION, Prompts::DROP], 'DRAG'))];
+    }
+
+    /**
      * @return array<string, string>
      */
     private static function operations(ActionSpace $space): array
     {
-        $labels = ['CLICK' => Prompts::OPERATION_CLICK, 'TYPE_TEXT' => Prompts::OPERATION_TYPE_TEXT, 'SELECT' => Prompts::OPERATION_SELECT];
+        $labels = ['CLICK' => Prompts::OPERATION_CLICK, 'TYPE_TEXT' => Prompts::OPERATION_TYPE_TEXT, 'SELECT' => Prompts::OPERATION_SELECT, 'DRAG' => Prompts::OPERATION_DRAG];
         $operations = array_intersect_key($labels, $space->targets);
         foreach ($space->controls as $name => $control) {
             $operations[$name] = $control->label;
@@ -93,6 +120,9 @@ final readonly class Decider
         $answer = Choices::validate($answers['operation'] ?? null, array_map('strval', array_keys($operations)));
         $operation = $answer['choice'];
         [$choice, $target, $probabilities] = $this->target($answers, $space, $operation, $answer, $settled);
+        $drop = $operation === 'DRAG'
+            ? $space->zones[Choices::validate($answers['drop_zone'] ?? null, array_map('strval', array_keys($space->zones)))['choice']]->id
+            : null;
 
         return new Decision(
             choice: $choice,
@@ -105,6 +135,7 @@ final readonly class Decider
             model: $call['model'],
             usage: $call['usage'],
             latencyMs: $call['latency'],
+            drop: $drop,
         );
     }
 

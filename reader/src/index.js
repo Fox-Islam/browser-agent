@@ -1,6 +1,7 @@
 import { describe } from './actions.js';
 import { locateNow } from './controls.js';
-import { blocker, setValue } from './execute.js';
+import { blocker, opaque, reveal, setValue } from './execute.js';
+import { markDropHandlers } from './drag.js';
 import { quietMs, still } from './quiet.js';
 import { resolve } from './handles.js';
 import { settle } from './names.js';
@@ -33,6 +34,9 @@ globalThis.pageReader ??= Object.freeze({
     guard,
     pageKey: pageKeyOf,
     blocker,
+    reveal,
+    opaque,
+    markDropHandlers,
     setValue,
     quietMs,
     still,

@@ -44,6 +44,8 @@ final class Step
         public readonly ?int $node = null,
         public readonly string $decidedBy = '',
         public readonly ?int $reusedFor = null,
+        public readonly ?string $drop = null,
+        public readonly ?string $context = null,
     ) {}
 
     /**
@@ -70,6 +72,8 @@ final class Step
             'step' => $this->number,
             'action' => $this->label,
             'kind' => $this->kind,
+            'drop' => $this->drop,
+            'context' => $this->context,
             'choice' => $this->choice,
             'operation' => $this->operation,
             'probability' => $this->probability,

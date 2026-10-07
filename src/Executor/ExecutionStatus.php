@@ -14,6 +14,12 @@ enum ExecutionStatus: string
     /** The value was refused before anything was done to the page. */
     case Rejected = 'rejected';
 
+    /**
+     * The control is on the page and could not be reached: something else is at its click point,
+     * it would not come into view, or it did not appear under the pointer. Nothing was sent.
+     */
+    case Covered = 'covered';
+
     /** The value was set, and the page cleared or changed it; input and change have fired. */
     case Altered = 'altered';
 }

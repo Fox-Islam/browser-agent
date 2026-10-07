@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><title>Reach</title>
+<style>
+  body { margin: 20px; font: 14px sans-serif; }
+  .row { display: flex; gap: 8px; align-items: center; width: 320px; padding: 6px; border: 1px solid #ccc; }
+  .row .reveal { opacity: 0; } .row:hover .reveal { opacity: 1; }
+  #panel { height: 100px; overflow-y: auto; width: 320px; border: 1px solid #999; }
+  #panel .spacer { height: 300px; }
+  .card { display: block; width: 300px; padding: 8px; border: 1px solid #ccc; margin: 4px; }
+  #below { position: absolute; top: 3000px; }
+</style></head>
+<body>
+<div class="row"><span>notes.txt</span><span class="reveal"><button aria-label="Remove file" onclick="window.removed=(window.removed||0)+1">x</button></span></div>
+<div id="panel"><div class="spacer">Long list</div><button onclick="window.created=(window.created||0)+1">Create folder</button></div>
+<button id="trash"><svg class="lucide lucide-trash-2" width="16" height="16"></svg></button>
+<div class="card" role="button" tabindex="0">Example project <button>Open</button></div>
+<div class="card" role="button" tabindex="0">Second project <button>Open</button></div>
+<button id="below">Far below</button>
+<button id="cover-me" style="position:absolute;top:400px;left:20px">Go</button>
+<div style="position:absolute;top:390px;left:10px;width:200px;height:60px;z-index:5"></div>
+<button style="position:absolute;top:470px;left:20px" onclick="window.other=1">Other</button>
+<button style="position:absolute;top:470px;left:120px">Third</button>
+</body></html>

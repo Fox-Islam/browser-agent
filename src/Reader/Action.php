@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Phox\BrowserAgent\Reader;
 
 /**
- * One entry of an observation's action list: an operation on a control, a scroll, or a wait.
+ * One entry of an observation's action list: an operation on a control, a drag source, a drop
+ * zone, a scroll, or a wait.
  * Control fields are null or false on scroll and wait entries; states are null when the control
  * does not expose them.
  */
@@ -34,6 +35,9 @@ final readonly class Action
         public bool $available = true,
         public ?string $href = null,
         public bool $required = false,
+        public bool $hover = false,
+        public ?string $offscreen = null,
+        public ?string $context = null,
     ) {}
 
     /**
@@ -63,6 +67,9 @@ final readonly class Action
             form: $action['form'] ?? null,
             href: $action['href'] ?? null,
             required: $action['required'] ?? false,
+            hover: $action['hover'] ?? false,
+            offscreen: $action['offscreen'] ?? null,
+            context: $action['context'] ?? null,
         );
     }
 
@@ -78,8 +85,11 @@ final readonly class Action
         return new self(...$fields);
     }
 
+    /**
+     * A drop zone is where a drag ends, not something a user operates on its own.
+     */
     public function operatesControl(): bool
     {
-        return in_array($this->kind, ['click', 'fill', 'select'], true);
+        return in_array($this->kind, ['click', 'fill', 'select', 'drag'], true);
     }
 }

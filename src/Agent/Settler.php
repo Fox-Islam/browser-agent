@@ -17,10 +17,17 @@ use RuntimeException;
  */
 final readonly class Settler
 {
+    /** Longest the moment given to newly arrived content to go quiet, in seconds. */
+    private const float QUIET_AFTER_ARRIVAL = 1.0;
+
+    /**
+     * @param  Arrival|null  $arrival  the run's network watch; without one no wait covers fetches
+     */
     public function __construct(
         private PageReader $reader,
         private CdpSession $cdp,
         private SettleTimings $timings = new SettleTimings,
+        private ?Arrival $arrival = null,
     ) {}
 
     /**
@@ -37,33 +44,16 @@ final readonly class Settler
     }
 
     /**
-     * Waits for an operable page, then for stillness unless the change from $previous is the kind
-     * that does not stream content in. A fingerprint change is no trigger: typing and scrolling
-     * move it without the page arriving.
+     * Waits for an operable page, then for stillness and arrival unless the change from $previous
+     * is the kind that does not stream content in. A fingerprint change is no trigger: typing and
+     * scrolling move it without the page arriving.
      */
     public function settle(?Observation $previous = null, bool $stabilise = false): Observation
     {
-        $deadline = microtime(true) + $this->timings->timeout;
-        $page = $this->reader->read();
-        while (! $page?->isOperable() && microtime(true) < $deadline) {
-            usleep((int) ($this->timings->poll * 1_000_000));
-            $page = $this->reader->read();
-        }
-        if ($page !== null && ! $stabilise && $previous !== null && ! self::unsettling($previous, $page)) {
-            return $page;
-        }
-        if ($this->reader->quietMs() >= $this->timings->stillMs()) {
-            return $this->observe();
-        }
-        while (($remaining = $deadline - microtime(true)) > 0) {
-            $still = $this->reader->holdsStill($this->timings->stillMs(), $remaining);
-            $page = $this->reader->read();
-            if ($still && $page?->isOperable()) {
-                return $page;
-            }
-        }
+        $started = microtime(true);
+        $page = $this->holdStill($previous, $stabilise);
 
-        return $this->observe();
+        return $stabilise || $previous === null || self::unsettling($previous, $page) ? $this->arrive($page, $started) : $page;
     }
 
     /**
@@ -79,14 +69,16 @@ final readonly class Settler
         } elseif ($before !== null) {
             usleep((int) ($this->timings->afterInput * 1_000_000));
         }
-        $deadline = microtime(true) + $this->timings->timeout;
+        $started = microtime(true);
+        $deadline = $started + $this->timings->timeout;
         $page = $this->reader->read();
         while (! $page?->isOperable() && microtime(true) < $deadline) {
             usleep((int) ($this->timings->poll * 1_000_000));
             $page = $this->reader->read();
         }
+        $page ??= $this->observe();
 
-        return $page ?? $this->observe();
+        return $before === null || self::unsettling($before, $page) ? $this->arrive($page, $started) : $page;
     }
 
     /**
@@ -120,6 +112,70 @@ final readonly class Settler
             usleep(20_000);
             $state = $this->cdp->send('Runtime.evaluate', ['expression' => 'document.readyState', 'returnByValue' => true]);
         } while (($state['result']['value'] ?? null) !== 'complete' && microtime(true) < $deadline);
+    }
+
+    private function holdStill(?Observation $previous, bool $stabilise): Observation
+    {
+        $deadline = microtime(true) + $this->timings->timeout;
+        $page = $this->untilOperable($deadline);
+        if ($page !== null && ! $stabilise && $previous !== null && ! self::unsettling($previous, $page)) {
+            return $page;
+        }
+
+        return $this->reader->quietMs() >= $this->timings->stillMs() ? $this->observe() : $this->untilStill($deadline);
+    }
+
+    private function untilOperable(float $deadline): ?Observation
+    {
+        $page = $this->reader->read();
+        while (! $page?->isOperable() && microtime(true) < $deadline) {
+            usleep((int) ($this->timings->poll * 1_000_000));
+            $page = $this->reader->read();
+        }
+
+        return $page;
+    }
+
+    private function untilStill(float $deadline): Observation
+    {
+        while (($remaining = $deadline - microtime(true)) > 0) {
+            $still = $this->reader->holdsStill($this->timings->stillMs(), $remaining);
+            $page = $this->reader->read();
+            if ($still && $page?->isOperable()) {
+                return $page;
+            }
+        }
+
+        return $this->observe();
+    }
+
+    /**
+     * The page once its fetches have come back and it has stopped showing more loading
+     * indicators than its floor, waiting no longer than the arrival limit from $started. What
+     * arrives is drawn in more than one pass, so after a wait it is given a moment to go quiet.
+     */
+    private function arrive(Observation $page, float $started): Observation
+    {
+        if ($this->arrival === null) {
+            return $page;
+        }
+        $deadline = $started + $this->timings->arrival;
+        $floor = $this->arrival->floor($page->url);
+        $waited = false;
+        while (($page->busy > $floor || $this->arrival->pending() > 0) && microtime(true) < $deadline) {
+            usleep((int) ($this->timings->poll * 2 * 1_000_000));
+            $page = $this->reader->read() ?? $page;
+            $waited = true;
+        }
+        $this->arrival->raiseFloor($page->url, $page->busy);
+        if ($this->arrival->pending() > 0) {
+            $this->arrival->forgetOpen();
+        }
+        if ($waited) {
+            $this->reader->holdsStill($this->timings->stillMs(), self::QUIET_AFTER_ARRIVAL);
+        }
+
+        return $waited ? $this->reader->read() ?? $page : $page;
     }
 
     private function observe(): Observation

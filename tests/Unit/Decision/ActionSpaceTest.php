@@ -37,3 +37,12 @@ it('lists an unavailable control without operations and offers it as no target',
         ->and(array_map('strval', array_keys($space->targets['CLICK'])))->toBe(['1', '3'])
         ->and($space->targets)->not->toHaveKey('TYPE_TEXT');
 });
+
+it('removes a withheld operation from the element table as well as the targets', function (): void {
+    $space = ActionSpace::of(observed([['node' => 1, 'kind' => 'click', 'label' => 'Card'], ['node' => 1, 'kind' => 'drag', 'label' => 'Card']])->actions);
+    $without = $space->withoutOperation('DRAG');
+
+    expect($space->elements[0]['operations'])->toBe(['CLICK', 'DRAG'])
+        ->and($without->elements[0]['operations'])->toBe(['CLICK'])
+        ->and($without->targets)->not->toHaveKey('DRAG');
+});

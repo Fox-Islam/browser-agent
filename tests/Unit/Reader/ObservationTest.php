@@ -84,3 +84,17 @@ it('reads a document-mode observation, which has no page key or guards', functio
         ->and($observation->action('e2')->required)->toBeTrue()
         ->and($observation->action('e1')->required)->toBeFalse();
 });
+
+it('reads the busy count and leaves hover out of the fingerprint', function (): void {
+    $base = [
+        'url' => 'https://example.test/', 'title' => 'T', 'viewport' => ['w' => 1, 'h' => 1], 'scroll' => ['y' => 0, 'height' => 1, 'view' => 1],
+        'text' => '', 'omitted_actions' => 0, 'busy' => 2,
+        'actions' => [['id' => 'e1', 'node' => 1, 'kind' => 'click', 'label' => 'Remove file', 'rect' => ['x' => 0, 'y' => 0, 'w' => 1, 'h' => 1]]],
+    ];
+    $hovered = $base;
+    $hovered['actions'][0]['hover'] = true;
+
+    expect(Observation::fromArray($base)->busy)->toBe(2)
+        ->and(Observation::fromArray($hovered)->fingerprint)->toBe(Observation::fromArray($base)->fingerprint)
+        ->and(Observation::fromArray($hovered)->actions[0]->hover)->toBeTrue();
+});

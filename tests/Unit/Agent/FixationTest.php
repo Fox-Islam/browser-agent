@@ -39,3 +39,9 @@ it('keeps one ineffective retry and never counts a wait', function (): void {
 it('looks only at the last few steps', function (): void {
     expect(Fixation::of([stepOn('Go', 1, false, 'a'), stepOn('Go', 1, false, 'a'), stepOn('A', 2, true, 'b'), stepOn('B', 3, true, 'c'), stepOn('C', 4, true, 'd')]))->toBe([]);
 });
+
+it('withholds a control refused as covered twice, though it left no step', function (): void {
+    $refused = [json_encode(['Learn more', 'click']) => 2, json_encode(['Share', 'click']) => 1];
+
+    expect(Fixation::of([], $refused))->toBe([['Learn more', 'click']]);
+});

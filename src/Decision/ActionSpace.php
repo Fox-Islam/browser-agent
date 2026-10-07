@@ -14,17 +14,19 @@ use Phox\BrowserAgent\Reader\Action;
  */
 final readonly class ActionSpace
 {
-    public const array OPERATIONS = ['click' => 'CLICK', 'fill' => 'TYPE_TEXT', 'select' => 'SELECT'];
+    public const array OPERATIONS = ['click' => 'CLICK', 'fill' => 'TYPE_TEXT', 'select' => 'SELECT', 'drag' => 'DRAG'];
 
     /**
      * @param  list<array<string, mixed>>  $elements  the element table sent to the model
      * @param  array<string, array<string, Action>>  $targets  operation => target index => action
      * @param  array<string, Action>  $controls  SCROLL_DOWN, SCROLL_UP and WAIT
+     * @param  array<string, Action>  $zones  where a drag can end, by index; places, not operations
      */
     private function __construct(
         public array $elements,
         public array $targets,
         public array $controls,
+        public array $zones = [],
     ) {}
 
     /**
@@ -32,8 +34,15 @@ final readonly class ActionSpace
      */
     public static function of(array $actions): self
     {
-        $elements = $targets = $controls = $indices = [];
+        $elements = $targets = $controls = $indices = $zones = [];
         foreach ($actions as $action) {
+            if ($action->kind === 'drop') {
+                if ($action->available) {
+                    $zones[(string) (count($zones) + 1)] = $action;
+                }
+
+                continue;
+            }
             $operation = self::OPERATIONS[$action->kind] ?? null;
             if ($operation === null) {
                 $controls[mb_strtoupper($action->id)] = $action;
@@ -58,7 +67,7 @@ final readonly class ActionSpace
             $targets[$operation][$target] = $action;
         }
 
-        return new self(array_values($elements), $targets, $controls);
+        return new self(array_values($elements), $targets, $controls, $zones);
     }
 
     /**
@@ -78,7 +87,24 @@ final readonly class ActionSpace
             }
         }
 
-        return $targets === [] ? $this : new self($this->elements, $targets, $this->controls);
+        return $targets === [] ? $this : new self($this->elements, $targets, $this->controls, $this->zones);
+    }
+
+    /**
+     * The same space with one operation offered nowhere, including in the element table the model
+     * reads, where a listed operation reads as one it may choose.
+     */
+    public function withoutOperation(string $operation): self
+    {
+        $targets = $this->targets;
+        unset($targets[$operation]);
+        $elements = $this->elements;
+        foreach ($elements as &$element) {
+            $element['operations'] = array_values(array_diff($element['operations'], [$operation]));
+        }
+        unset($element);
+
+        return new self($elements, $targets, $this->controls, $this->zones);
     }
 
     /**

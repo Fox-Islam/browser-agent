@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><title>Drag</title>
+<style>
+  body { margin: 20px; font: 14px sans-serif; }
+  section, #canvas, #handled { width: 220px; height: 90px; border: 1px dashed #888; margin: 6px; }
+  [draggable] { width: 120px; height: 30px; background: #ddf; }
+</style></head>
+<body>
+<div draggable="true" ondragstart="event.dataTransfer.setData('text/plain', 'task-7')">Task seven</div>
+<section aria-label="Done column" ondragover="event.preventDefault()" ondrop="event.preventDefault(); window.dropped = (window.dropped || []).concat(event.dataTransfer.getData('text/plain'))"></section>
+<div id="canvas">Start here</div>
+<div id="handled" ondrop="event.preventDefault()"></div>
+<script>
+  // Set from page script, as a framework would: only the page's own world can see it.
+  const canvas = document.getElementById('canvas');
+  canvas.ondragover = (e) => e.preventDefault();
+  canvas.ondrop = (e) => { e.preventDefault(); window.canvasDrop = e.dataTransfer.getData('text/plain'); };
+</script>
+</body></html>

@@ -32,6 +32,7 @@ final readonly class Observation
         public ReadingMode $mode = ReadingMode::Viewport,
         public array $outline = [],
         public ?array $truncated = null,
+        public int $busy = 0,
     ) {}
 
     /**
@@ -55,6 +56,7 @@ final readonly class Observation
             mode: ReadingMode::from($observation['mode'] ?? 'viewport'),
             outline: $observation['outline'] ?? [],
             truncated: $observation['truncated'] ?? null,
+            busy: $observation['busy'] ?? 0,
         );
     }
 
@@ -94,7 +96,7 @@ final readonly class Observation
         return new self(
             $this->url, $this->title, $this->viewportWidth, $this->viewportHeight, $this->scrollY, $this->scrollHeight,
             $this->text, $actions, $this->omittedActions, $this->pageKey, $this->guards, $this->fingerprint,
-            $this->mode, $this->outline, $this->truncated,
+            $this->mode, $this->outline, $this->truncated, $this->busy,
         );
     }
 
@@ -112,14 +114,16 @@ final readonly class Observation
      * The page's semantic state: address, text, controls and scroll position. Equal fingerprints
      * mean the page a decision was taken about is the current page. Control geometry
      * is left out: an animation moves it without changing what the page offers, and the executor
-     * reads geometry again before any input.
+     * reads geometry again before any input. Whether a control shows only under the pointer is
+     * left out too: it is where the pointer is, and it flickers as a row fades out under a pointer
+     * moving on.
      *
      * @param  array<string, mixed>  $observation
      */
     private static function fingerprintOf(array $observation): string
     {
         $actions = array_map(function (array $action): array {
-            unset($action['rect']);
+            unset($action['rect'], $action['hover']);
 
             return $action;
         }, $observation['actions']);

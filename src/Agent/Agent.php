@@ -53,6 +53,11 @@ final class Agent
 
     private PageQuestions $questions;
 
+    private Arrival $arrival;
+
+    /** @var array<string, int> controls refused as covered since the last executed step */
+    private array $refused = [];
+
     private ?float $unfreshSince = null;
 
     /** The page a decision was just confirmed against, so acting on it needs no second look. */
@@ -69,6 +74,7 @@ final class Agent
         private readonly AgentOptions $options,
         private readonly Faults $faults = new Faults,
     ) {
+        $this->arrival = new Arrival($options->timings->longRequest);
         $this->held = new HeldDecisions;
         $this->submits = new SubmitGuard;
         $this->values = new FieldValues($text);
@@ -102,6 +108,7 @@ final class Agent
     public function run(?string $url = null): RunState
     {
         $this->faults->watch($this->cdp);
+        $this->arrival->watch($this->cdp);
         $settler = $this->settler();
         if ($url !== null) {
             $settler->navigate($url);
@@ -182,7 +189,7 @@ final class Agent
         while ($state->decisionCalls < $this->options->maxSteps * 2) {
             $asked = $state->page;
             $state->decisionCalls++;
-            $decision = $this->decider->choose($asked, $state->goal, $state->history, $pending, Fixation::of($this->state->history));
+            $decision = $this->decider->choose($asked, $state->goal, $state->history, $pending, Fixation::of($this->state->history, $this->refused));
             if ($this->reader->read()?->fingerprint === $asked->fingerprint || $this->restless() || $this->waitedOutRestless()) {
                 $this->unfreshSince = null;
                 $this->verified = $asked->fingerprint;
@@ -255,7 +262,7 @@ final class Agent
         }
         $state = $this->state;
         $state->decisionCalls++;
-        $decision = $this->decider->choose($page, $state->plan[$this->unsatisfied()[0]], $state->history, [], Fixation::of($state->history));
+        $decision = $this->decider->choose($page, $state->plan[$this->unsatisfied()[0]], $state->history, [], Fixation::of($state->history, $this->refused));
         $state->decisions[] = $decision;
         $action = $page->action($decision->choice);
         if ($decision->choice === 'DONE') {
@@ -293,8 +300,17 @@ final class Agent
     private function execute(Decision $decision, Action $action, Observation $page): void
     {
         [$text, $spent] = $action->kind === 'fill' ? $this->fillValue($decision, $action, $page) : [null, null];
-        $execution = $this->executor->execute($page, $action, $text);
-        if ($execution->status === ExecutionStatus::Stale) {
+        $drop = $decision->drop === null ? null : $page->action($decision->drop);
+        if ($action->kind === 'drag' && $drop === null) {
+            throw new StalePage('The drag has no drop zone on this page. Choose again.');
+        }
+        $execution = $this->executor->execute($page, $action, $text, $drop);
+        if ($execution->status === ExecutionStatus::Covered) {
+            // Nothing was sent, so no step records it; counted so the control stops being offered.
+            $key = json_encode([$action->label, $action->kind], JSON_THROW_ON_ERROR);
+            $this->refused[$key] = ($this->refused[$key] ?? 0) + 1;
+        }
+        if ($execution->status === ExecutionStatus::Stale || $execution->status === ExecutionStatus::Covered) {
             throw new StalePage((string) $execution->reason);
         }
         $this->values->spent($action->label);
@@ -322,8 +338,11 @@ final class Agent
             note: $execution->status === ExecutionStatus::Altered ? $execution->reason : null,
             submits: $action->submits,
             node: $action->node,
+            drop: $drop?->label,
+            context: $action->context,
         );
         $this->state->history[] = $step;
+        $this->refused = [];
         $this->submits->record($action, $page, $text);
         $this->observeAfter($step, $page);
     }
@@ -454,6 +473,6 @@ final class Agent
 
     private function settler(): Settler
     {
-        return new Settler($this->reader, $this->cdp, $this->options->timings);
+        return new Settler($this->reader, $this->cdp, $this->options->timings, $this->arrival);
     }
 }

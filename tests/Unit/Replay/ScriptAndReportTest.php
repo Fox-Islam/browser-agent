@@ -91,3 +91,17 @@ it('stays small however large the page is', function (): void {
     expect(Report::of($state)['final']['controls'])->toHaveCount(Report::CONTROLS)
         ->and(mb_strlen(json_encode(Report::of($state))))->toBeLessThan(4096);
 });
+
+it('scripts a drag with its drop zone and a shared label with its context, and counts a drag as mutating', function (): void {
+    $state = new RunState('https://example.test/', 'Archive it', ['Archive it'], observed());
+    $state->history = [
+        new Step(1, 'Task seven', 'drag', 'e1', 'DRAG', 0.9, 0.9, null, 'https://example.test/', 0, drop: 'Archive'),
+        new Step(2, 'Open', 'click', 'e2', 'CLICK', 0.9, 0.9, null, 'https://example.test/', 0, context: 'Example project'),
+    ];
+    $script = Script::of($state);
+
+    expect($script['steps'])->toBe([
+        ['kind' => 'drag', 'label' => 'Task seven', 'drop' => 'Archive'],
+        ['kind' => 'click', 'label' => 'Open', 'context' => 'Example project'],
+    ])->and(Script::mutates($script))->toBeTrue();
+});

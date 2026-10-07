@@ -19,12 +19,15 @@ final class Script
     public const int VERSION = 1;
 
     /**
-     * @return array{version: int, name: string|null, url: string|null, goal: string, steps: list<array{kind: string, label: string, text?: string, submits?: true}>}
+     * A control sharing its label with others is told apart by its context; a drag names where it
+     * was dropped, by the zone's label.
+     *
+     * @return array{version: int, name: string|null, url: string|null, goal: string, steps: list<array{kind: string, label: string, context?: string, drop?: string, text?: string, submits?: true}>}
      */
     public static function of(RunState $state, ?string $name = null): array
     {
         $steps = array_map(fn (Step $step): array => array_filter(
-            ['kind' => $step->kind, 'label' => $step->label, 'text' => $step->text, 'submits' => $step->submits ?: null],
+            ['kind' => $step->kind, 'label' => $step->label, 'context' => $step->context, 'drop' => $step->drop, 'text' => $step->text, 'submits' => $step->submits ?: null],
             fn ($value) => $value !== null,
         ), $state->history);
 
@@ -58,7 +61,8 @@ final class Script
     }
 
     /**
-     * Whether replaying the script twice would send anything twice: it types, selects or submits.
+     * Whether replaying the script twice would send anything twice: it types, selects, drags or
+     * submits.
      *
      * @param  array<string, mixed>  $script
      */
@@ -67,7 +71,7 @@ final class Script
         foreach ($script['steps'] ?? [] as $step) {
             $kind = $step['kind'] ?? null;
             $submits = ($step['submits'] ?? false) === true || ReadOnlyActions::submits((string) ($step['label'] ?? ''));
-            if (in_array($kind, ['fill', 'select'], true) || ($kind === 'click' && $submits)) {
+            if (in_array($kind, ['fill', 'select', 'drag'], true) || ($kind === 'click' && $submits)) {
                 return true;
             }
         }

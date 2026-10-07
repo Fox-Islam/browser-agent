@@ -98,7 +98,7 @@ it('does nothing when something covers the control', function (): void {
     $observation = $this->reader->read();
     page('document.body.insertAdjacentHTML("beforeend", "<div style=\"position:fixed;inset:0\"></div>")');
 
-    expect($this->executor->execute($observation, $observation->actions[0]))->toEqual(Execution::stale('in the way: <div>'))
+    expect($this->executor->execute($observation, $observation->actions[0]))->toEqual(Execution::covered('in the way: <div>'))
         ->and(page('window.clicks'))->toBe(0);
 });
 
