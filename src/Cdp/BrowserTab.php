@@ -86,10 +86,17 @@ final class BrowserTab
         $this->connection->call('Target.disposeBrowserContext', ['browserContextId' => $this->contextId]);
     }
 
+    /**
+     * Focus emulation keeps a background tab in a shared or headed Chrome running timers and
+     * animation frames instead of throttling them.
+     */
     private static function attached(CdpConnection $connection, string $targetId, string $contextId, ?float $timeout): self
     {
         $attached = $connection->call('Target.attachToTarget', ['targetId' => $targetId, 'flatten' => true], timeout: $timeout);
 
-        return new self($connection, $targetId, $contextId, new PageSession($connection, $attached['sessionId'], $timeout));
+        $session = new PageSession($connection, $attached['sessionId'], $timeout);
+        $session->send('Emulation.setFocusEmulationEnabled', ['enabled' => true]);
+
+        return new self($connection, $targetId, $contextId, $session);
     }
 }
