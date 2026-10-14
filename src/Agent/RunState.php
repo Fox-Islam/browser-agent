@@ -51,6 +51,12 @@ final class RunState
     /** @var list<int> sub-goals a done run stopped without reading as satisfied */
     public array $unconfirmed = [];
 
+    /** Whether a run that stopped done did so on a DONE too weak to read as success. */
+    public bool $doubtful = false;
+
+    /** How strongly the screenshot alone showed the goal done, when a DONE was sent one. */
+    public ?float $screenDone = null;
+
     /** @var list<array<string, mixed>> */
     public array $textCalls = [];
 
@@ -97,6 +103,8 @@ final class RunState
             'plan_satisfied' => $this->planSatisfied,
             'satisfaction' => $this->satisfaction,
             'unconfirmed' => $this->unconfirmed,
+            'doubtful' => $this->doubtful,
+            'screen_done' => $this->screenDone,
             'evidence' => $this->evidence,
             'refused_url' => $this->refusedUrl,
             'queries' => $this->queries,

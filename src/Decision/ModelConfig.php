@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Phox\BrowserAgent\Decision;
 
+use InvalidArgumentException;
+use Phox\TypeSafe\Enums\Provider;
+
 /**
  * Where decisions and field values come from. The caller supplies keys; nothing reads the
  * environment.
@@ -26,7 +29,25 @@ final readonly class ModelConfig
         public bool $textReasoning = true,
         public float $timeout = 25.0,
         public string $decisionPath = self::TYPESAFE_DECISION_PATH,
-    ) {}
+        public ImageMode $images = ImageMode::Off,
+    ) {
+        if (! in_array('/' . ltrim($decisionPath, '/'), [self::TYPESAFE_DECISION_PATH, self::OPENROUTER_DECISION_PATH], true)) {
+            throw new InvalidArgumentException("No decision provider answers at {$decisionPath}.");
+        }
+        // OpenRouter's decisions path answers a request carrying an image with HTTP 200 and the same
+        // answer whichever image is sent, so images there would run blind and be paid for.
+        if ($images !== ImageMode::Off && $this->provider() === Provider::OpenRouter) {
+            throw new InvalidArgumentException('Images need decisions sent to TypeSafe directly; OpenRouter does not pass them on.');
+        }
+        if ($images !== ImageMode::Off && ! extension_loaded('gd')) {
+            throw new InvalidArgumentException('Images need the gd extension.');
+        }
+    }
+
+    public function provider(): Provider
+    {
+        return '/' . ltrim($this->decisionPath, '/') === self::OPENROUTER_DECISION_PATH ? Provider::OpenRouter : Provider::TypeSafe;
+    }
 
     /**
      * Any server implementing /v1/systemone answers a decision, so a local one is a base URL.

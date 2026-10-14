@@ -8,6 +8,7 @@ use Phox\BrowserAgent\Agent\RunState;
 use Phox\BrowserAgent\Cdp\BrowserTab;
 use Phox\BrowserAgent\Cdp\CdpException;
 use Phox\BrowserAgent\Cdp\WebSocketConnection;
+use Phox\BrowserAgent\Decision\ImageMode;
 use Phox\BrowserAgent\Decision\Prompts;
 use Phox\BrowserAgent\Replay\Replayer;
 use Phox\BrowserAgent\Replay\ReplayException;
@@ -27,9 +28,9 @@ afterEach(function (): void {
     $this->chrome->stop();
 });
 
-function runAgent(FakeModels $models, array $options, string $fixture): RunState
+function runAgent(FakeModels $models, array $options, string $fixture, ImageMode $images = ImageMode::Off): RunState
 {
-    $agent = Agent::make(test()->tab->session, FakeModels::config(), $models->http, new AgentOptions(...$options));
+    $agent = Agent::make(test()->tab->session, FakeModels::config($images), $models->http, new AgentOptions(...$options));
 
     return $agent->run(test()->chrome->base . '/' . $fixture);
 }
@@ -354,4 +355,26 @@ it('acts on the extra decision when it answers with an action instead of DONE', 
     expect(array_map(fn ($s) => $s->label, $state->history))->toBe(['View history'])
         ->and($state->status)->toBe('done')
         ->and($state->unconfirmed)->toBe([]);
+});
+
+it('sends a marked screenshot for a row of unnamed controls and reports a DONE it does not bear out as doubtful', function (): void {
+    $models = new FakeModels([['CLICK', 'button'], ['DONE', 'screen' => 0.2]]);
+
+    $state = runAgent($models, ['goals' => ['Open the shopping cart']], 'icons.html', ImageMode::Auto);
+    $report = Report::of($state);
+
+    expect($state->status)->toBe('done')
+        ->and(array_column($models->requests, 'images'))->toBe([1, 1])
+        ->and($state->decisions[0]->screenshot)->toBeTrue()
+        ->and([$state->doubtful, $state->screenDone])->toBe([true, 0.2])
+        ->and([$report['doubtful'], $report['screen_done']])->toBe([true, 0.2]);
+});
+
+it('sends no screenshot in auto mode on a page the text settles', function (): void {
+    $models = new FakeModels([['DONE']]);
+
+    $state = runAgent($models, ['goals' => ['Find the sign-up form']], 'signup.html', ImageMode::Auto);
+
+    expect(array_column($models->requests, 'images'))->toBe([0])
+        ->and([$state->doubtful, $state->screenDone])->toBe([false, null]);
 });

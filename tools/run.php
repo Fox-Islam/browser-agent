@@ -9,7 +9,8 @@ declare(strict_types=1);
  *   CDP_URL=wss://... CDP_AUTHORIZATION="Bearer ..." TYPESAFE_API_KEY=... TEXT_MODEL_API_KEY=... \
  *     php tools/run.php https://example.com "Find the contact page"
  *
- * TEXT_MODEL_BASE_URL and TEXT_MODEL override the text helper's provider and model.
+ * TEXT_MODEL_BASE_URL and TEXT_MODEL override the text helper's provider and model. IMAGES is off,
+ * auto or always.
  */
 
 use GuzzleHttp\Client;
@@ -18,6 +19,7 @@ use Phox\BrowserAgent\Agent\AgentOptions;
 use Phox\BrowserAgent\Agent\RunState;
 use Phox\BrowserAgent\Cdp\BrowserTab;
 use Phox\BrowserAgent\Cdp\WebSocketConnection;
+use Phox\BrowserAgent\Decision\ImageMode;
 use Phox\BrowserAgent\Decision\ModelConfig;
 use Phox\BrowserAgent\Replay\Report;
 
@@ -36,6 +38,7 @@ $config = new ModelConfig(
     textKey: $env('TEXT_MODEL_API_KEY'),
     textBaseUrl: $env('TEXT_MODEL_BASE_URL', 'https://api.deepseek.com/v1'),
     textModel: $env('TEXT_MODEL', 'deepseek-chat'),
+    images: ImageMode::from($env('IMAGES', 'off')),
 );
 $options = new AgentOptions([$goal], heartbeat: function (RunState $state): void {
     $last = end($state->history);

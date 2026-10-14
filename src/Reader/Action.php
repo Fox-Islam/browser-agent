@@ -8,7 +8,8 @@ namespace Phox\BrowserAgent\Reader;
  * One entry of an observation's action list: an operation on a control, a drag source, a drop
  * zone, a scroll, or a wait.
  * Control fields are null or false on scroll and wait entries; states are null when the control
- * does not expose them.
+ * does not expose them. `group` is set only on a control with no name of its own, and is the
+ * handle of the element holding it, so unnamed controls side by side share one.
  */
 final readonly class Action
 {
@@ -38,6 +39,7 @@ final readonly class Action
         public bool $hover = false,
         public ?string $offscreen = null,
         public ?string $context = null,
+        public ?int $group = null,
     ) {}
 
     /**
@@ -70,6 +72,7 @@ final readonly class Action
             hover: $action['hover'] ?? false,
             offscreen: $action['offscreen'] ?? null,
             context: $action['context'] ?? null,
+            group: $action['group'] ?? null,
         );
     }
 

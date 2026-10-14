@@ -8,6 +8,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Psr7\Response;
+use Phox\BrowserAgent\Decision\ImageMode;
 use Phox\BrowserAgent\Decision\ModelConfig;
 use Psr\Http\Message\RequestInterface;
 use RuntimeException;
@@ -19,7 +20,7 @@ use RuntimeException;
  */
 final class FakeModels
 {
-    /** @var list<array{url: string, body: array<string, mixed>}> */
+    /** @var list<array{url: string, body: array<string, mixed>, images: int, imagesHeader: string}> */
     public array $requests = [];
 
     public Client $http;
@@ -32,7 +33,9 @@ final class FakeModels
      * (`plan`), what each sub-goal would do (`holds`: operation and target label), and an
      * operation to answer while the first is not offered (`else`), and for a drag the label of the
      * zone it ends on (`drop`). `plan` and `holds` are keyed by
-     * position among the outstanding sub-goals, as the questions are.
+     * position among the outstanding sub-goals, as the questions are. `confidence` is the
+     * operation answer's confidence, and `screen` the reading for whether the screenshot shows the
+     * goal done.
      *
      * @param  list<array{0: string, 1?: string, plan?: array<int, float>, holds?: array<int, array{0: string, 1?: string}>, else?: string}>  $decisions
      * @param  array<string, string|null>  $values  field label => value the text helper gives
@@ -44,9 +47,9 @@ final class FakeModels
         )]);
     }
 
-    public static function config(): ModelConfig
+    public static function config(ImageMode $images = ImageMode::Off): ModelConfig
     {
-        return new ModelConfig(typesafeKey: 'ts-key', typesafeBaseUrl: 'https://typesafe.test', textKey: 'text-key', textBaseUrl: 'https://text.test/v1');
+        return new ModelConfig(typesafeKey: 'ts-key', typesafeBaseUrl: 'https://typesafe.test', textKey: 'text-key', textBaseUrl: 'https://text.test/v1', images: $images);
     }
 
     /**
@@ -83,13 +86,13 @@ final class FakeModels
      * @param  list<int|string>  $ids
      * @return array{choice: string, probabilities: array<string, float>, confidence: float}
      */
-    private static function choice(array $ids, string $choice): array
+    private static function choice(array $ids, string $choice, float $confidence = 0.9): array
     {
         $ids = array_map('strval', $ids);
-        $rest = count($ids) > 1 ? 0.1 / (count($ids) - 1) : 0.0;
-        $probabilities = array_combine($ids, array_map(fn (string $id) => $id === $choice ? (count($ids) > 1 ? 0.9 : 1.0) : $rest, $ids));
+        $rest = count($ids) > 1 ? (1 - $confidence) / (count($ids) - 1) : 0.0;
+        $probabilities = array_combine($ids, array_map(fn (string $id) => $id === $choice ? (count($ids) > 1 ? $confidence : 1.0) : $rest, $ids));
 
-        return ['choice' => $choice, 'probabilities' => $probabilities, 'confidence' => 0.9];
+        return ['choice' => $choice, 'probabilities' => $probabilities, 'confidence' => $confidence];
     }
 
     /**
@@ -100,11 +103,40 @@ final class FakeModels
         return new Response(200, ['Content-Type' => 'application/json'], json_encode($body));
     }
 
+    /**
+     * The request body, from JSON or from the `request` part of a multipart upload, and how many
+     * image parts came with it.
+     *
+     * @return array{array<string, mixed>, int}
+     */
+    private static function body(RequestInterface $request): array
+    {
+        $raw = (string) $request->getBody();
+        if (preg_match('/boundary="?([^";]+)"?/', $request->getHeaderLine('Content-Type'), $m) !== 1) {
+            return [json_decode($raw, true), 0];
+        }
+        $body = [];
+        $images = 0;
+        foreach (explode('--' . $m[1], $raw) as $part) {
+            [$head, $content] = array_pad(explode("\r\n\r\n", $part, 2), 2, '');
+            if (str_contains($head, 'name="request"')) {
+                $body = json_decode(rtrim($content, "\r\n"), true);
+            } elseif (str_contains($head, 'name="asset-')) {
+                $images++;
+            }
+        }
+
+        return [$body, $images];
+    }
+
     private function answer(RequestInterface $request): Response
     {
         usleep((int) ($this->latency * 1_000_000));
-        $body = json_decode((string) $request->getBody(), true);
-        $this->requests[] = ['url' => (string) $request->getUri(), 'body' => $body];
+        [$body, $images] = self::body($request);
+        $this->requests[] = [
+            'url' => (string) $request->getUri(), 'body' => $body, 'images' => $images,
+            'imagesHeader' => $request->getHeaderLine('TypeSafe-Danger-Zone-Images'),
+        ];
 
         return str_ends_with((string) $request->getUri(), '/chat/completions')
             ? self::json(['choices' => [['message' => ['content' => $this->text($body)]]], 'usage' => ['total_tokens' => 10]])
@@ -139,8 +171,9 @@ final class FakeModels
                 continue;
             }
             $answers[$name] = match (true) {
+                $name === 'screen_done' => ['noul' => $scripted['screen'] ?? 0.9],
                 $question['type'] === 'noul' => ['noul' => $scripted['plan'][(int) mb_substr($name, 4)] ?? 0.1],
-                $name === 'operation' => self::choice(array_keys($question['criteria']), $operation),
+                $name === 'operation' => self::choice(array_keys($question['criteria']), $operation, $scripted['confidence'] ?? 0.9),
                 // A sub-goal with nothing scripted holds WAIT, which is never acted on later.
                 str_ends_with($name, '_operation') && isset($question['criteria']['WAIT']) => self::choice(array_keys($question['criteria']), 'WAIT'),
                 $name === mb_strtolower($operation) . '_target' => self::choice(array_keys($question['criteria']), self::labelled($question['criteria'], $label)),

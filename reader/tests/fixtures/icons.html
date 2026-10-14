@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shop</title>
+<style>
+body { font-family: sans-serif; margin: 0; }
+header { display: flex; gap: 18px; padding: 14px 24px; background: #222; }
+header button { background: none; border: 0; padding: 6px; cursor: pointer; }
+svg { width: 28px; height: 28px; stroke: #fff; fill: none; stroke-width: 2; }
+main { padding: 24px; }
+</style>
+</head>
+<body>
+<header>
+<button onclick="opened('menu')"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+<button onclick="opened('search')"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M15 15l6 6"/></svg></button>
+<button onclick="opened('cart')"><svg viewBox="0 0 24 24"><path d="M2 3h3l3 12h11l2-8H6"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg></button>
+</header>
+<main><h1>Garden tools</h1><a href="#about">About us</a><p id="panel"></p></main>
+<script>
+function opened(name) { document.getElementById('panel').textContent = name + ' opened'; }
+</script>
+</body>
+</html>

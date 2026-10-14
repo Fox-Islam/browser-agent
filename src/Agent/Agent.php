@@ -8,6 +8,8 @@ use GuzzleHttp\ClientInterface;
 use Phox\BrowserAgent\Cdp\CdpSession;
 use Phox\BrowserAgent\Decision\Decider;
 use Phox\BrowserAgent\Decision\Decision;
+use Phox\BrowserAgent\Decision\DecisionClient;
+use Phox\BrowserAgent\Decision\ImageMode;
 use Phox\BrowserAgent\Decision\ModelClient;
 use Phox\BrowserAgent\Decision\ModelConfig;
 use Phox\BrowserAgent\Decision\ReadOnlyActions;
@@ -19,6 +21,7 @@ use Phox\BrowserAgent\Reader\Action;
 use Phox\BrowserAgent\Reader\Observation;
 use Phox\BrowserAgent\Reader\PageReader;
 use Phox\BrowserAgent\Reader\ReaderOptions;
+use Phox\BrowserAgent\Reader\ScreenCapture;
 
 /**
  * The decision loop: observe the page, choose an operation and a target in one model call, carry
@@ -38,6 +41,13 @@ final class Agent
      * not_found.
      */
     public const float UNSEEN_ENOUGH = 0.15;
+
+    /**
+     * A DONE below this confidence, or one the screenshot alone does not bear out to this
+     * strength, is reported doubtful. Flagged instead of refused: a run without sub-goals has no
+     * other way to finish, but a caller must not read it as success.
+     */
+    public const float DOUBTFUL = 0.5;
 
     /** Actions in a row that moved nothing, waits aside, that end the run blocked. */
     public const int NO_PROGRESS = 3;
@@ -86,10 +96,11 @@ final class Agent
      */
     public static function make(CdpSession $cdp, ModelConfig $config, ClientInterface $http, AgentOptions $options, ReaderOptions $reading = new ReaderOptions): self
     {
-        $client = new ModelClient($http, $config->timeout);
         $reader = new PageReader($cdp, $reading);
+        $screen = $config->images === ImageMode::Off ? null : new ScreenCapture($cdp);
+        $decider = new Decider(new DecisionClient($http, $config), $config, screen: $screen);
 
-        return new self($cdp, $reader, new Executor($cdp, $reader, waitSeconds: 0.1), new Decider($client, $config), new TextHelper($client, $config), $options);
+        return new self($cdp, $reader, new Executor($cdp, $reader, waitSeconds: 0.1), $decider, new TextHelper(new ModelClient($http, $config->timeout), $config), $options);
     }
 
     /**
@@ -243,7 +254,7 @@ final class Agent
         $action = $page->action($decision->choice);
         match (true) {
             $action === null && $decision->choice === 'DONE' && $this->unsatisfied() !== [] => $this->doubleCheck($page),
-            $action === null => $this->conclude($decision->choice, $page),
+            $action === null => $this->conclude($decision, $page),
             count($state->history) >= $this->options->maxSteps => $this->stop('budget'),
             default => $this->execute($decision, $action, $page),
         };
@@ -268,7 +279,7 @@ final class Agent
         if ($decision->choice === 'DONE') {
             $state->unconfirmed = $this->unsatisfied();
         }
-        $action === null ? $this->conclude($decision->choice, $page) : $this->execute($decision, $action, $page);
+        $action === null ? $this->conclude($decision, $page) : $this->execute($decision, $action, $page);
     }
 
     /**
@@ -281,12 +292,17 @@ final class Agent
             : [];
     }
 
-    private function conclude(string $choice, Observation $page): void
+    private function conclude(Decision $decision, Observation $page): void
     {
         if (! $this->settledOrRestless($page)) {
             throw new StalePage('Page changed since the decision. Choose again.');
         }
-        if ($choice === 'DONE') {
+        if ($decision->choice === 'DONE') {
+            // The screenshot can only add doubt: a page that looks finished is no stronger proof
+            // than DONE itself.
+            $this->state->screenDone = $decision->screenDone;
+            $this->state->doubtful = $decision->confidence < self::DOUBTFUL
+                || ($decision->screenDone !== null && $decision->screenDone < self::DOUBTFUL);
             $this->stop('done');
 
             return;

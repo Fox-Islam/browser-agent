@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Phox\BrowserAgent\Decision\ActionSpace;
 use Phox\BrowserAgent\Decision\Decider;
-use Phox\BrowserAgent\Decision\ModelClient;
+use Phox\BrowserAgent\Decision\DecisionClient;
 use Phox\BrowserAgent\Decision\Prompts;
 use Phox\BrowserAgent\Decision\Questions;
 use Phox\BrowserAgent\Decision\ReadOnlyActions;
@@ -26,7 +26,7 @@ function boardControls(): array
 
 function dragDecider(FakeModels $models): Decider
 {
-    return new Decider(new ModelClient($models->http), FakeModels::config());
+    return new Decider(new DecisionClient($models->http, FakeModels::config()), FakeModels::config());
 }
 
 it('offers DRAG with a drop-zone head, and names the zone the model chose', function (): void {

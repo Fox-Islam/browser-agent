@@ -38,6 +38,16 @@ Decisions go to TypeSafe's `/v1/systemone` by default. OpenRouter answers the sa
 own path with an OpenRouter key:
 `new ModelConfig(typesafeKey: $openRouterKey, typesafeBaseUrl: ModelConfig::OPENROUTER_BASE_URL, decisionPath: ModelConfig::OPENROUTER_DECISION_PATH)`.
 
+`ModelConfig(images: ImageMode::Auto)` sends a decision a screenshot of the page, with each
+offered element in view outlined and tagged with its index, where the page's text cannot settle
+it: two or more unnamed controls side by side, a goal naming a colour, highlight, icon or
+position, or a text-only answer that is BLOCKED, a DONE below 0.9 confidence or any other operation
+below 0.6, which is asked again with the screenshot. `ImageMode::Always` sends one with every
+decision. A screenshot costs about 2.5k input tokens and, on a hosted browser, a capture round
+trip. A DONE below 0.5 confidence, or one the screenshot alone does not bear out, stops the run
+`doubtful`. Images need decisions sent to TypeSafe directly: OpenRouter's decisions path answers
+a request carrying an image as if none were sent, so `ModelConfig` refuses the combination.
+
 A run is read-only unless `AgentOptions` sets `readOnly: false`: it may click to navigate or
 reveal, but is offered nothing that types, selects, drags or submits. A run that may write can also
 drag an element onto a drop zone, as a native drag or as pointer moves. A run ends `done`, `blocked` (with
@@ -69,6 +79,7 @@ as listed in `Report::of` and the text rendering. A query written as a function 
 - A CDP endpoint, for example Cloudflare Browser Run
 - A TypeSafe API key for action decisions
 - An OpenAI-compatible model key for field values, when a run fills fields
+- The gd extension, when decisions are sent screenshots
 
 ## Development
 

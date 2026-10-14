@@ -7,6 +7,8 @@ namespace Phox\BrowserAgent\Decision;
 use Phox\BrowserAgent\Agent\Step;
 use Phox\BrowserAgent\Reader\Action;
 use Phox\BrowserAgent\Reader\Observation;
+use Phox\BrowserAgent\Reader\ScreenCapture;
+use Phox\TypeSafe\Assets\Image;
 
 /**
  * Asks TypeSafe which operation to take and, in the same request, which target each operation
@@ -19,9 +21,10 @@ final readonly class Decider
     private const int RECENT_STEPS = 10;
 
     public function __construct(
-        private ModelClient $client,
+        private DecisionClient $client,
         private ModelConfig $config,
         private PlanQuestions $plans = new PlanQuestions,
+        private ?ScreenCapture $screen = null,
     ) {}
 
     /**
@@ -32,40 +35,34 @@ final readonly class Decider
     public function choose(Observation $page, string $goal, array $history, array $pending = [], array $suppress = []): Decision
     {
         $space = self::dragsWithZones(ActionSpace::of($page->actions)->without($suppress));
-        $operations = self::operations($space);
-        // Read-only runs and the resubmit guard leave controls on the page that cannot be chosen;
-        // without this the model reads a goal about seeing one as blocked.
-        $notes = array_filter($space->elements, fn (array $e) => ($e['available'] ?? true) === false) === [] ? [] : [Prompts::UNAVAILABLE];
-        $rules = [Prompts::NEXT_ACTION, ...$notes];
-        if (Scrolling::stillHelps($page, $history)) {
-            // Withheld instead of argued against: an option that is not offered cannot be taken.
-            unset($operations['BLOCKED']);
-            $rules[] = round(Scrolling::unseen($page) * 100) . '% of this page is below the viewport and has not been seen.';
+        $first = $this->decide($page, $space, $goal, $history, $pending, $this->screenshot($page, $space, $goal, look: false));
+        if ($first->screenshot || $this->config->images !== ImageMode::Auto || ! Looking::secondLook($first->operation, $first->confidence)) {
+            return $first;
         }
-        // A head offering one candidate answers 1.00 whatever the element is, which reads as
-        // certainty downstream, so a single candidate is taken without asking.
-        $settled = array_map(fn (array $c) => (string) array_key_first($c), array_filter($space->targets, fn (array $c) => count($c) === 1));
-        $questions = ['operation' => Questions::choice($operations, Questions::instructions($goal, $rules))]
-            + Questions::targets($goal, $space->targets, $settled, notes: $notes)
-            + self::dropQuestion($goal, $space)
-            + $this->plans->questions($pending, $operations, $space->targets, $settled, $notes);
-        $started = hrtime(true);
-        $result = $this->client->post($this->config->decisionUrl(), $this->config->typesafeKey, [
-            'model' => $this->config->typesafeModel,
-            'state' => [
-                'page' => ['url' => $page->url, 'title' => $page->title, 'text' => $page->text],
-                'elements' => $space->elements,
-                'recent_actions' => array_map(fn (Step $s) => $s->recent(), array_slice($history, -self::RECENT_STEPS)),
-            ],
-            'questions' => $questions,
-        ]);
-        $answers = is_array($result['answers'] ?? null) ? $result['answers'] : [];
+        // Asked again with a screenshot, which stands in place of the text-only answer; that one is
+        // kept on it so its cost is counted. Without a screenshot to send, the text-only one stands.
+        $screenshot = $this->screenshot($page, $space, $goal, look: true);
 
-        return $this->decision($answers, $space, $operations, $settled, $pending, [
-            'model' => (string) ($result['model'] ?? ''),
-            'usage' => is_array($result['usage'] ?? null) ? $result['usage'] : [],
-            'latency' => (int) round((hrtime(true) - $started) / 1e6),
-        ]);
+        return $screenshot === null ? $first : $this->decide($page, $space, $goal, $history, $pending, $screenshot)->after($first);
+    }
+
+    /**
+     * Asked whenever the screenshot is sent and read only when DONE is chosen: which decision ends
+     * the run is not known until the answers arrive, and the image is in the request either way.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    private static function screenQuestion(string $goal, ?Image $screenshot): array
+    {
+        if ($screenshot === null) {
+            return [];
+        }
+
+        return ['screen_done' => [
+            'type' => 'noul',
+            'instructions' => Questions::instructions($goal, [Prompts::SCREEN, Prompts::SCREEN_DONE]),
+            'criteria' => ['true' => Prompts::SCREEN_DONE_TRUE, 'false' => Prompts::SCREEN_DONE_FALSE],
+        ]];
     }
 
     /**
@@ -108,12 +105,77 @@ final readonly class Decider
         return $operations + ['DONE' => Prompts::OPERATION_DONE, 'BLOCKED' => Prompts::OPERATION_BLOCKED];
     }
 
+    private static function noul(mixed $answer): ?float
+    {
+        $value = is_array($answer) ? ($answer['noul'] ?? null) : null;
+
+        return (is_int($value) || is_float($value)) && $value >= 0 && $value <= 1 ? (float) $value : null;
+    }
+
+    /**
+     * @param  list<Step>  $history
+     * @param  list<string>  $pending
+     */
+    private function decide(Observation $page, ActionSpace $space, string $goal, array $history, array $pending, ?Image $screenshot): Decision
+    {
+        $operations = self::operations($space);
+        // Read-only runs and the resubmit guard leave controls on the page that cannot be chosen;
+        // without this the model reads a goal about seeing one as blocked.
+        $notes = array_filter($space->elements, fn (array $e) => ($e['available'] ?? true) === false) === [] ? [] : [Prompts::UNAVAILABLE];
+        if ($screenshot !== null) {
+            $notes[] = Prompts::SCREEN;
+        }
+        $rules = [Prompts::NEXT_ACTION, ...$notes];
+        if (Scrolling::stillHelps($page, $history)) {
+            // Withheld instead of argued against: an option that is not offered cannot be taken.
+            unset($operations['BLOCKED']);
+            $rules[] = round(Scrolling::unseen($page) * 100) . '% of this page is below the viewport and has not been seen.';
+        }
+        // A head offering one candidate answers 1.00 whatever the element is, which reads as
+        // certainty downstream, so a single candidate is taken without asking.
+        $settled = array_map(fn (array $c) => (string) array_key_first($c), array_filter($space->targets, fn (array $c) => count($c) === 1));
+        $questions = ['operation' => Questions::choice($operations, Questions::instructions($goal, $rules))]
+            + Questions::targets($goal, $space->targets, $settled, notes: $notes)
+            + self::dropQuestion($goal, $space)
+            + $this->plans->questions($pending, $operations, $space->targets, $settled, $notes)
+            + self::screenQuestion($goal, $screenshot);
+        $state = [
+            'page' => ['url' => $page->url, 'title' => $page->title, 'text' => $page->text],
+            'elements' => $space->elements,
+            'recent_actions' => array_map(fn (Step $s) => $s->recent(), array_slice($history, -self::RECENT_STEPS)),
+        ] + ($screenshot === null ? [] : ['screen' => $screenshot]);
+        $started = hrtime(true);
+        $result = $this->client->ask($state, $questions, images: $screenshot !== null);
+
+        return $this->decision($result['answers'], $space, $operations, $settled, $pending, [
+            'model' => $result['model'],
+            'usage' => $result['usage'],
+            'latency' => (int) round((hrtime(true) - $started) / 1e6),
+            'screenshot' => $screenshot !== null,
+        ]);
+    }
+
+    /**
+     * The marked screenshot for this decision, when {@see Looking} wants one and it can be taken
+     * and fitted to the API's limits. $look is true for a decision being asked again.
+     */
+    private function screenshot(Observation $page, ActionSpace $space, string $goal, bool $look): ?Image
+    {
+        if ($this->screen === null || ! Looking::wanted($this->config->images, $look, $page->actions, $goal)) {
+            return null;
+        }
+        $jpeg = $this->screen->jpeg();
+        $marked = $jpeg === null ? null : MarkedScreenshot::of($jpeg, $page->viewportWidth, $space->targets);
+
+        return $marked === null ? null : Image::fromBytes($marked);
+    }
+
     /**
      * @param  array<string, mixed>  $answers
      * @param  array<string, string>  $operations
      * @param  array<string, string>  $settled
      * @param  list<string>  $pending
-     * @param  array{model: string, usage: array<string, mixed>, latency: int}  $call
+     * @param  array{model: string, usage: array<string, mixed>, latency: int, screenshot: bool}  $call
      */
     private function decision(array $answers, ActionSpace $space, array $operations, array $settled, array $pending, array $call): Decision
     {
@@ -136,6 +198,8 @@ final readonly class Decider
             usage: $call['usage'],
             latencyMs: $call['latency'],
             drop: $drop,
+            screenshot: $call['screenshot'],
+            screenDone: self::noul($answers['screen_done'] ?? null),
         );
     }
 

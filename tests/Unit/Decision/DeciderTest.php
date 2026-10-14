@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Phox\BrowserAgent\Agent\Step;
 use Phox\BrowserAgent\Decision\Decider;
-use Phox\BrowserAgent\Decision\ModelClient;
+use Phox\BrowserAgent\Decision\DecisionClient;
 use Phox\BrowserAgent\Decision\ModelException;
 use Phox\BrowserAgent\Decision\Prompts;
 use Tests\Fakes\FakeModels;
@@ -13,7 +13,7 @@ require_once __DIR__ . '/helpers.php';
 
 function decider(FakeModels $models): Decider
 {
-    return new Decider(new ModelClient($models->http), FakeModels::config());
+    return new Decider(new DecisionClient($models->http, FakeModels::config()), FakeModels::config());
 }
 
 function scrollStep(bool $moved): Step

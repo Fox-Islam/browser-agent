@@ -42,7 +42,10 @@ export function describe(el, maxLabel) {
 }
 
 export function actionsFor(el, info, rect, node, options) {
-    const base = { node, role: info.role, submits: submitsForm(el), ...formOf(el), ...linkOf(el, options.max_label), ...requiredOf(el) };
+    const base = {
+        node, role: info.role, submits: submitsForm(el), ...formOf(el), ...linkOf(el, options.max_label), ...requiredOf(el),
+        ...groupOf(el, info),
+    };
     const shown = { value: info.value, ...info.states, rect };
     if (el.localName === 'select') {
         return selectActions(el, info, { ...base, ...info.states, rect }, options);
@@ -89,6 +92,19 @@ function requiredOf(el) {
 
 // A submit button or submit/image input with a form owner, whether it sits inside the form or
 // names it through its form attribute. A button without a type attribute is a submit button.
+// Where an unnamed control sits, so a row of them - an icon toolbar, a set of swatches - can be told
+// from one alone: text cannot tell the controls in a row apart. A control alone in its wrapper is
+// grouped by the wrapper's parent, as icon buttons in list items are.
+function groupOf(el, info) {
+    if (info.label !== info.role) {
+        return {};
+    }
+    const parent = el.parentElement;
+    const holder = parent && parent.children.length === 1 && parent.parentElement ? parent.parentElement : parent;
+
+    return holder ? { group: handleOf(holder) } : {};
+}
+
 function submitsForm(el) {
     const submitter = (el.localName === 'button' && el.type === 'submit')
         || (el.localName === 'input' && (el.type === 'submit' || el.type === 'image'));

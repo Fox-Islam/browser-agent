@@ -47,6 +47,8 @@ final class Report
             ],
             'operations' => array_map(fn (float $p) => round($p, 3), $last->operationProbabilities ?? []),
             'reason' => $state->reason,
+            'doubtful' => $state->doubtful,
+            'screen_done' => $state->screenDone === null ? null : round($state->screenDone, 3),
             ...self::subGoals($state),
             'evidence' => $state->evidence,
             'refused_url' => $state->refusedUrl,
