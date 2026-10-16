@@ -45,8 +45,7 @@ position, or a text-only answer that is BLOCKED, a DONE below 0.9 confidence or 
 below 0.6, which is asked again with the screenshot. `ImageMode::Always` sends one with every
 decision. A screenshot costs about 2.5k input tokens and, on a hosted browser, a capture round
 trip. A DONE below 0.5 confidence, or one the screenshot alone does not bear out, stops the run
-`doubtful`. Images need decisions sent to TypeSafe directly: OpenRouter's decisions path answers
-a request carrying an image as if none were sent, so `ModelConfig` refuses the combination.
+`doubtful`.
 
 A run is read-only unless `AgentOptions` sets `readOnly: false`: it may click to navigate or
 reveal, but is offered nothing that types, selects, drags or submits. A run that may write can also

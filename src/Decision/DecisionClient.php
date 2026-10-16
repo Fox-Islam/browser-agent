@@ -18,9 +18,10 @@ use Phox\TypeSafe\Retry\RetryPolicy;
 use Phox\TypeSafe\TypeSafe;
 
 /**
- * Decisions through the TypeSafe SDK, over the run's one HTTP client. A request with an image is
- * uploaded as multipart with the images opt-in header; one without is the same JSON as before. A
- * model call changes nothing on the page, so an overloaded provider is asked again.
+ * Decisions through the TypeSafe SDK, over the run's one HTTP client. A request with an image
+ * carries the images opt-in header; TypeSafe takes the image as a multipart part and OpenRouter as
+ * an inline `image_url` data URI. A model call changes nothing on the page, so an overloaded
+ * provider is asked again.
  */
 final readonly class DecisionClient
 {

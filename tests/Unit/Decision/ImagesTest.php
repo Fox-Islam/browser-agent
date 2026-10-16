@@ -106,9 +106,21 @@ it('places a select option where its element is and leaves out what is out of vi
     expect(array_keys(MarkedScreenshot::places(ActionSpace::of(actionsOf($controls))->targets)))->toBe([1, 3, 4, 2]);
 });
 
-it('refuses images on OpenRouter, which answers as if no image were sent', function (): void {
-    new ModelConfig('k', typesafeBaseUrl: ModelConfig::OPENROUTER_BASE_URL, decisionPath: ModelConfig::OPENROUTER_DECISION_PATH, images: ImageMode::Auto);
-})->throws(InvalidArgumentException::class, 'Images need decisions sent to TypeSafe directly');
+it('writes the screenshot into the JSON as an image_url data URI on OpenRouter', function (): void {
+    $models = new FakeModels([['DONE']]);
+    $config = new ModelConfig('k', typesafeBaseUrl: ModelConfig::OPENROUTER_BASE_URL, decisionPath: ModelConfig::OPENROUTER_DECISION_PATH, images: ImageMode::Always);
+    $cdp = new FakeCdpSession(['Page.captureScreenshot' => fn () => ['data' => base64_encode(jpeg())]]);
+
+    (new Decider(new DecisionClient($models->http, $config), $config, screen: new ScreenCapture($cdp)))->choose(observed(formControls()), 'Sign up', []);
+    $request = $models->requests[0];
+
+    expect($request['url'])->toBe('https://openrouter.ai/api/v1/systemone')
+        ->and($request['images'])->toBe(0)
+        ->and($request['imagesHeader'])->toBe('true')
+        ->and($request['body'])->not->toHaveKey('assets')
+        ->and($request['body']['state']['screen']['type'])->toBe('image_url')
+        ->and($request['body']['state']['screen']['image_url']['url'])->toStartWith('data:image/jpeg;base64,');
+});
 
 it('refuses a decision path no provider answers at', function (): void {
     new ModelConfig('k', decisionPath: '/v2/elsewhere');

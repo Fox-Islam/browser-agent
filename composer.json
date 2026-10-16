@@ -13,7 +13,7 @@
         "php": "^8.3",
         "amphp/websocket-client": "^2.0",
         "guzzlehttp/guzzle": "^7.9",
-        "phox/typesafe-sdk-php": "^0.5"
+        "phox/typesafe-sdk-php": "^0.5.2"
     },
     "suggest": {
         "ext-gd": "Marks the screenshots sent to decisions when ModelConfig::$images is not Off"

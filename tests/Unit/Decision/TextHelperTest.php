@@ -100,7 +100,7 @@ it('switches the reasoning setting to what each provider accepts', function (): 
 it('sends decisions to the TypeSafe path by default and to a configured path otherwise', function (): void {
     expect((new ModelConfig('k'))->decisionUrl())->toBe('https://api.typesafe.ai/v1/systemone')
         ->and((new ModelConfig('k', typesafeBaseUrl: ModelConfig::OPENROUTER_BASE_URL, decisionPath: ModelConfig::OPENROUTER_DECISION_PATH))->decisionUrl())
-        ->toBe('https://openrouter.ai/api/alpha/decisions')
+        ->toBe('https://openrouter.ai/api/v1/systemone')
         ->and((new ModelConfig('k', typesafeBaseUrl: 'https://local.test/', decisionPath: 'v1/systemone'))->decisionUrl())
         ->toBe('https://local.test/v1/systemone');
 });

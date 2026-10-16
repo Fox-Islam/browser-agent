@@ -6,6 +6,7 @@ namespace Phox\BrowserAgent\Decision;
 
 use InvalidArgumentException;
 use Phox\TypeSafe\Enums\Provider;
+use Phox\TypeSafe\TypeSafe;
 
 /**
  * Where decisions and field values come from. The caller supplies keys; nothing reads the
@@ -17,7 +18,7 @@ final readonly class ModelConfig
 
     public const string OPENROUTER_BASE_URL = 'https://openrouter.ai';
 
-    public const string OPENROUTER_DECISION_PATH = '/api/alpha/decisions';
+    public const string OPENROUTER_DECISION_PATH = TypeSafe::OPENROUTER_SYSTEM_ONE_PATH;
 
     public function __construct(
         public string $typesafeKey,
@@ -33,11 +34,6 @@ final readonly class ModelConfig
     ) {
         if (! in_array('/' . ltrim($decisionPath, '/'), [self::TYPESAFE_DECISION_PATH, self::OPENROUTER_DECISION_PATH], true)) {
             throw new InvalidArgumentException("No decision provider answers at {$decisionPath}.");
-        }
-        // OpenRouter's decisions path answers a request carrying an image with HTTP 200 and the same
-        // answer whichever image is sent, so images there would run blind and be paid for.
-        if ($images !== ImageMode::Off && $this->provider() === Provider::OpenRouter) {
-            throw new InvalidArgumentException('Images need decisions sent to TypeSafe directly; OpenRouter does not pass them on.');
         }
         if ($images !== ImageMode::Off && ! extension_loaded('gd')) {
             throw new InvalidArgumentException('Images need the gd extension.');
