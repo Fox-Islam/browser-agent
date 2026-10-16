@@ -47,6 +47,13 @@ decision. A screenshot costs about 2.5k input tokens and, on a hosted browser, a
 trip. A DONE below 0.5 confidence, or one the screenshot alone does not bear out, stops the run
 `doubtful`.
 
+Each decision is told what the last input caused: the site's own fetches that wrote something or
+failed, with method, address and status, and the page's console errors and uncaught exceptions.
+A save the page reports as done while its request failed, or while it logged an error, is then
+not taken for success. Fetches to other sites, such as analytics and adverts, are left out.
+`AgentOptions(signals: false)` turns this off. An unnamed control is described by the colour it is
+filled with, so a set of swatches can be told apart.
+
 A run is read-only unless `AgentOptions` sets `readOnly: false`: it may click to navigate or
 reveal, but is offered nothing that types, selects, drags or submits. A run that may write can also
 drag an element onto a drop zone, as a native drag or as pointer moves. A run ends `done`, `blocked` (with

@@ -27,6 +27,16 @@ final class Faults
 
     private ?string $documentType = null;
 
+    /**
+     * A console call's arguments as one line, as the console would print them.
+     *
+     * @param  list<array<string, mixed>>  $args
+     */
+    public static function consoleText(array $args): string
+    {
+        return implode(' ', array_map(fn (array $a) => is_scalar($a['value'] ?? null) ? (string) $a['value'] : (string) ($a['description'] ?? ''), $args));
+    }
+
     public function watch(CdpSession $cdp): void
     {
         $cdp->listen($this->note(...));
@@ -46,6 +56,8 @@ final class Faults
     {
         match ($method) {
             'Log.entryAdded' => $this->logEntry($params['entry'] ?? []),
+            // A page's own console.error arrives here; Log.entryAdded carries only the browser's.
+            'Runtime.consoleAPICalled' => ($params['type'] ?? null) === 'error' ? $this->add('console', ['level' => 'error', 'text' => mb_substr(self::consoleText($params['args'] ?? []), 0, self::TEXT_LENGTH), 'url' => null]) : null,
             'Runtime.exceptionThrown' => $this->exception($params['exceptionDetails'] ?? []),
             'Network.responseReceived' => $this->response($params),
             'Network.loadingFailed' => $this->add('requests', ['url' => null, 'status' => null, 'failed' => mb_substr((string) ($params['errorText'] ?? ''), 0, self::FAILURE_LENGTH)]),

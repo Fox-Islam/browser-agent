@@ -81,6 +81,9 @@ final class Questions
         }
         // Said, because the model cannot see either: a control that appears under the pointer, and
         // one brought into view when used, are as usable as anything on screen.
+        if ($action->colour !== null) {
+            $parts[] = "filled {$action->colour}";
+        }
         if ($action->context !== null) {
             $parts[] = 'in ' . self::quote($action->context);
         }

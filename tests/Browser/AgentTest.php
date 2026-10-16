@@ -378,3 +378,24 @@ it('sends no screenshot in auto mode on a page the text settles', function (): v
     expect(array_column($models->requests, 'images'))->toBe([0])
         ->and([$state->doubtful, $state->screenDone])->toBe([false, null]);
 });
+
+it('tells decisions that a save failed until the next input, through a wait', function (): void {
+    $models = new FakeModels([['TYPE_TEXT', 'Name'], ['CLICK', 'Save'], ['WAIT'], ['TYPE_TEXT', 'Name'], ['BLOCKED']], ['Name' => 'Ada']);
+
+    runAgent($models, ['goals' => ['Set the name to Ada and save it'], 'readOnly' => false], 'save.html');
+    $told = array_map(fn (array $body) => $body['state']['network_after_last_action'] ?? null, $models->decisionRequests());
+    $failed = [['method' => 'POST', 'url' => test()->chrome->base . '/save-api.php', 'status' => 500]];
+
+    expect($told)->toBe([null, null, $failed, $failed, null]);
+});
+
+it('describes unnamed swatches by the colour they are filled with', function (): void {
+    $models = new FakeModels([['BLOCKED']]);
+
+    runAgent($models, ['goals' => ['Choose the red colour']], 'save.html');
+
+    expect($models->decisionRequests()[0]['questions']['click_target']['criteria'])->toContain(
+        "Element [3], labelled 'button', a button, filled red.",
+        "Element [4], labelled 'button', a button, filled blue.",
+    );
+});

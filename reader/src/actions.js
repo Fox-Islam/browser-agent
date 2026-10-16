@@ -101,8 +101,34 @@ function groupOf(el, info) {
     }
     const parent = el.parentElement;
     const holder = parent && parent.children.length === 1 && parent.parentElement ? parent.parentElement : parent;
+    const colour = colourOf(getComputedStyle(el).backgroundColor);
 
-    return holder ? { group: handleOf(holder) } : {};
+    return { ...(holder ? { group: handleOf(holder) } : {}), ...(colour ? { colour } : {}) };
+}
+
+// The name of the colour a control is filled with, so a set of unnamed swatches has something to
+// be told apart by. Null for a control with no fill of its own.
+function colourOf(css) {
+    const m = css.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?/);
+    if (!m || (m[4] !== undefined && Number(m[4]) < 0.5)) {
+        return null;
+    }
+    const [r, g, b] = [m[1], m[2], m[3]].map((c) => Number(c) / 255);
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const light = (max + min) / 2;
+    const spread = max - min;
+    if (spread < 0.12) {
+        return light < 0.2 ? 'black' : light > 0.85 ? 'white' : 'grey';
+    }
+    const sector = max === r ? ((g - b) / spread) % 6 : max === g ? (b - r) / spread + 2 : (r - g) / spread + 4;
+    const hue = (sector * 60 + 360) % 360;
+    if (light < 0.35 && (hue < 45 || hue >= 330)) {
+        return 'brown';
+    }
+    const names = [[15, 'red'], [45, 'orange'], [70, 'yellow'], [165, 'green'], [200, 'cyan'], [255, 'blue'], [290, 'purple'], [345, 'pink']];
+
+    return (names.find(([end]) => hue < end) ?? [0, 'red'])[1];
 }
 
 function submitsForm(el) {

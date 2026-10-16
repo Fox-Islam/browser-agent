@@ -83,6 +83,7 @@ final class Agent
         TextHelper $text,
         private readonly AgentOptions $options,
         private readonly Faults $faults = new Faults,
+        private readonly ?AfterAction $after = null,
     ) {
         $this->arrival = new Arrival($options->timings->longRequest);
         $this->held = new HeldDecisions;
@@ -98,9 +99,11 @@ final class Agent
     {
         $reader = new PageReader($cdp, $reading);
         $screen = $config->images === ImageMode::Off ? null : new ScreenCapture($cdp);
-        $decider = new Decider(new DecisionClient($http, $config), $config, screen: $screen);
+        $after = $options->signals ? new AfterAction : null;
+        $decider = new Decider(new DecisionClient($http, $config), $config, screen: $screen, after: $after);
+        $text = new TextHelper(new ModelClient($http, $config->timeout), $config);
 
-        return new self($cdp, $reader, new Executor($cdp, $reader, waitSeconds: 0.1), $decider, new TextHelper(new ModelClient($http, $config->timeout), $config), $options);
+        return new self($cdp, $reader, new Executor($cdp, $reader, waitSeconds: 0.1), $decider, $text, $options, after: $after);
     }
 
     /**
@@ -120,6 +123,7 @@ final class Agent
     {
         $this->faults->watch($this->cdp);
         $this->arrival->watch($this->cdp);
+        $this->after?->watch($this->cdp);
         $settler = $this->settler();
         if ($url !== null) {
             $settler->navigate($url);
@@ -319,6 +323,11 @@ final class Agent
         $drop = $decision->drop === null ? null : $page->action($decision->drop);
         if ($action->kind === 'drag' && $drop === null) {
             throw new StalePage('The drag has no drop zone on this page. Choose again.');
+        }
+        if (! in_array($action->kind, ['wait', 'scroll'], true)) {
+            // Waiting and scrolling send nothing to the site, so what the last input caused is
+            // still what the next decision needs to know.
+            $this->after?->reset();
         }
         $execution = $this->executor->execute($page, $action, $text, $drop);
         if ($execution->status === ExecutionStatus::Covered) {

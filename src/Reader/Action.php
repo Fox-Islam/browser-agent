@@ -9,7 +9,8 @@ namespace Phox\BrowserAgent\Reader;
  * zone, a scroll, or a wait.
  * Control fields are null or false on scroll and wait entries; states are null when the control
  * does not expose them. `group` is set only on a control with no name of its own, and is the
- * handle of the element holding it, so unnamed controls side by side share one.
+ * handle of the element holding it, so unnamed controls side by side share one, and `colour` is
+ * the name of the colour it is filled with, when it has a fill of its own.
  */
 final readonly class Action
 {
@@ -40,6 +41,7 @@ final readonly class Action
         public ?string $offscreen = null,
         public ?string $context = null,
         public ?int $group = null,
+        public ?string $colour = null,
     ) {}
 
     /**
@@ -73,6 +75,7 @@ final readonly class Action
             offscreen: $action['offscreen'] ?? null,
             context: $action['context'] ?? null,
             group: $action['group'] ?? null,
+            colour: $action['colour'] ?? null,
         );
     }
 

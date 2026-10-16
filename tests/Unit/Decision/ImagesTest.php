@@ -188,3 +188,21 @@ it('states in the README the thresholds the code uses', function (): void {
         ->toContain('any other operation below ' . Looking::UNCERTAIN)
         ->toContain('A DONE below ' . Phox\BrowserAgent\Agent\Agent::DOUBTFUL . ' confidence');
 });
+
+it('describes an unnamed control by the colour it is filled with', function (): void {
+    $swatch = Action::fromArray(['id' => 'e1', 'kind' => 'click', 'label' => 'button', 'role' => 'button', 'colour' => 'red']);
+
+    expect(Phox\BrowserAgent\Decision\Questions::describe('3', $swatch))->toBe("Element [3], labelled 'button', a button, filled red.");
+});
+
+it('sends a decision what followed the last input', function (): void {
+    $models = new FakeModels([['BLOCKED']]);
+    $cdp = new FakeCdpSession;
+    $after = new Phox\BrowserAgent\Agent\AfterAction;
+    $after->watch($cdp);
+    $cdp->emit('Runtime.consoleAPICalled', ['type' => 'error', 'args' => [['type' => 'string', 'value' => 'Save failed']]]);
+
+    (new Decider(new DecisionClient($models->http, FakeModels::config()), FakeModels::config(), after: $after))->choose(observed(formControls()), 'Save', []);
+
+    expect($models->requests[0]['body']['state']['console_errors_after_last_action'])->toBe(['Save failed']);
+});

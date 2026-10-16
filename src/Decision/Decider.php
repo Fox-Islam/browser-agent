@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phox\BrowserAgent\Decision;
 
+use Phox\BrowserAgent\Agent\AfterAction;
 use Phox\BrowserAgent\Agent\Step;
 use Phox\BrowserAgent\Reader\Action;
 use Phox\BrowserAgent\Reader\Observation;
@@ -25,6 +26,7 @@ final readonly class Decider
         private ModelConfig $config,
         private PlanQuestions $plans = new PlanQuestions,
         private ?ScreenCapture $screen = null,
+        private ?AfterAction $after = null,
     ) {}
 
     /**
@@ -143,7 +145,7 @@ final readonly class Decider
             'page' => ['url' => $page->url, 'title' => $page->title, 'text' => $page->text],
             'elements' => $space->elements,
             'recent_actions' => array_map(fn (Step $s) => $s->recent(), array_slice($history, -self::RECENT_STEPS)),
-        ] + ($screenshot === null ? [] : ['screen' => $screenshot]);
+        ] + ($this->after?->report($page->url) ?? []) + ($screenshot === null ? [] : ['screen' => $screenshot]);
         $started = hrtime(true);
         $result = $this->client->ask($state, $questions, images: $screenshot !== null);
 

@@ -34,6 +34,7 @@ final readonly class AgentOptions
      * @param  list<string>  $allowedHosts  hosts the run may visit, matched on suffix; empty allows all
      * @param  int  $maxSteps  most actions a run may take before it stops at its budget
      * @param  Closure(RunState): void|null  $heartbeat  called once per step
+     * @param  bool  $signals  tells each decision what the last input caused; see {@see AfterAction}
      */
     public function __construct(
         array $goals,
@@ -45,6 +46,7 @@ final readonly class AgentOptions
         public int $maxSteps = self::MAX_STEPS,
         public ?Closure $heartbeat = null,
         public SettleTimings $timings = new SettleTimings,
+        public bool $signals = true,
     ) {
         $wanted = $asked = [];
         foreach ($goals as $goal) {
