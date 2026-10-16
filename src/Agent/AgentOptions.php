@@ -35,6 +35,7 @@ final readonly class AgentOptions
      * @param  int  $maxSteps  most actions a run may take before it stops at its budget
      * @param  Closure(RunState): void|null  $heartbeat  called once per step
      * @param  bool  $signals  tells each decision what the last input caused; see {@see AfterAction}
+     * @param  array<string, string>  $secrets  values for password and card fields, by name; see {@see Secrets}
      */
     public function __construct(
         array $goals,
@@ -47,6 +48,7 @@ final readonly class AgentOptions
         public ?Closure $heartbeat = null,
         public SettleTimings $timings = new SettleTimings,
         public bool $signals = true,
+        public array $secrets = [],
     ) {
         $wanted = $asked = [];
         foreach ($goals as $goal) {

@@ -20,14 +20,14 @@ final class Script
 
     /**
      * A control sharing its label with others is told apart by its context; a drag names where it
-     * was dropped, by the zone's label.
+     * was dropped, by the zone's label. A step that typed a secret says so and holds no value.
      *
-     * @return array{version: int, name: string|null, url: string|null, goal: string, steps: list<array{kind: string, label: string, context?: string, drop?: string, text?: string, submits?: true}>}
+     * @return array{version: int, name: string|null, url: string|null, goal: string, steps: list<array{kind: string, label: string, context?: string, drop?: string, text?: string, secret?: true, submits?: true}>}
      */
     public static function of(RunState $state, ?string $name = null): array
     {
         $steps = array_map(fn (Step $step): array => array_filter(
-            ['kind' => $step->kind, 'label' => $step->label, 'context' => $step->context, 'drop' => $step->drop, 'text' => $step->text, 'submits' => $step->submits ?: null],
+            ['kind' => $step->kind, 'label' => $step->label, 'context' => $step->context, 'drop' => $step->drop, 'text' => $step->text, 'secret' => $step->secret ?: null, 'submits' => $step->submits ?: null],
             fn ($value) => $value !== null,
         ), $state->history);
 

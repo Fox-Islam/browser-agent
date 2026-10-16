@@ -10,7 +10,8 @@ namespace Phox\BrowserAgent\Reader;
  * Control fields are null or false on scroll and wait entries; states are null when the control
  * does not expose them. `group` is set only on a control with no name of its own, and is the
  * handle of the element holding it, so unnamed controls side by side share one, and `colour` is
- * the name of the colour it is filled with, when it has a fill of its own.
+ * the name of the colour it is filled with, when it has a fill of its own. `secret` marks a field
+ * whose value is never read, a password or card field, typed only from the caller's secrets.
  */
 final readonly class Action
 {
@@ -42,6 +43,7 @@ final readonly class Action
         public ?string $context = null,
         public ?int $group = null,
         public ?string $colour = null,
+        public bool $secret = false,
     ) {}
 
     /**
@@ -76,6 +78,7 @@ final readonly class Action
             context: $action['context'] ?? null,
             group: $action['group'] ?? null,
             colour: $action['colour'] ?? null,
+            secret: $action['secret'] ?? false,
         );
     }
 

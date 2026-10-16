@@ -75,6 +75,8 @@ final class Agent
 
     private float $started = 0.0;
 
+    private Secrets $secrets;
+
     public function __construct(
         private readonly CdpSession $cdp,
         private readonly PageReader $reader,
@@ -90,6 +92,7 @@ final class Agent
         $this->submits = new SubmitGuard;
         $this->values = new FieldValues($text);
         $this->questions = new PageQuestions($reader, $options->queries);
+        $this->secrets = new Secrets($options->secrets);
     }
 
     /**
@@ -204,7 +207,7 @@ final class Agent
         while ($state->decisionCalls < $this->options->maxSteps * 2) {
             $asked = $state->page;
             $state->decisionCalls++;
-            $decision = $this->decider->choose($asked, $state->goal, $state->history, $pending, Fixation::of($this->state->history, $this->refused));
+            $decision = $this->decider->choose($this->secrets->scrub($asked), $state->goal, $state->history, $pending, Fixation::of($this->state->history, $this->refused));
             if ($this->reader->read()?->fingerprint === $asked->fingerprint || $this->restless() || $this->waitedOutRestless()) {
                 $this->unfreshSince = null;
                 $this->verified = $asked->fingerprint;
@@ -277,7 +280,7 @@ final class Agent
         }
         $state = $this->state;
         $state->decisionCalls++;
-        $decision = $this->decider->choose($page, $state->plan[$this->unsatisfied()[0]], $state->history, [], Fixation::of($state->history, $this->refused));
+        $decision = $this->decider->choose($this->secrets->scrub($page), $state->plan[$this->unsatisfied()[0]], $state->history, [], Fixation::of($state->history, $this->refused));
         $state->decisions[] = $decision;
         $action = $page->action($decision->choice);
         if ($decision->choice === 'DONE') {
@@ -351,7 +354,7 @@ final class Agent
             operation: $decision->operation,
             probability: $decision->probability(),
             confidence: $decision->confidence,
-            text: $text,
+            text: $action->secret ? null : $text,
             url: $page->url,
             elapsedMs: $this->elapsed(),
             decisionLatencyMs: $decision->latencyMs,
@@ -365,6 +368,7 @@ final class Agent
             node: $action->node,
             drop: $drop?->label,
             context: $action->context,
+            secret: $action->secret,
         );
         $this->state->history[] = $step;
         $this->refused = [];
@@ -377,6 +381,10 @@ final class Agent
      */
     private function fillValue(Decision $decision, Action $action, Observation $page): array
     {
+        if ($action->secret) {
+            // Offered only when a secret is given for it; see Secrets::offered.
+            return [$this->secrets->for($action->label), null];
+        }
         if (! $this->settledOrRestless($page)) {
             throw new StalePage('Page changed before text generation. Choose again.');
         }
@@ -467,7 +475,7 @@ final class Agent
      */
     private function visible(Observation $page): Observation
     {
-        $page = $this->submits->mark($page);
+        $page = $this->secrets->offered($this->submits->mark($page));
 
         return $this->options->readOnly ? $page->withActions(ReadOnlyActions::mark($page->actions)) : $page;
     }

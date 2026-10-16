@@ -54,6 +54,12 @@ not taken for success. Fetches to other sites, such as analytics and adverts, ar
 `AgentOptions(signals: false)` turns this off. An unnamed control is described by the colour it is
 filled with, so a set of swatches can be told apart.
 
+Password and card fields are typed only from `AgentOptions(secrets: ['password' => ...])`: the
+executor types the secret whose name the field's label contains, or the only one given. A secret
+is never sent to a model, a value a page shows in clear is masked before a decision, and a step
+records that a secret was typed, not which. Without a secret for it, a field is listed but cannot
+be typed into. `new Replayer($open, secrets: new Secrets([...]))` types a secret step again.
+
 A run is read-only unless `AgentOptions` sets `readOnly: false`: it may click to navigate or
 reveal, but is offered nothing that types, selects, drags or submits. A run that may write can also
 drag an element onto a drop zone, as a native drag or as pointer moves. A run ends `done`, `blocked` (with

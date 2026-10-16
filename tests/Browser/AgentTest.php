@@ -399,3 +399,34 @@ it('describes unnamed swatches by the colour they are filled with', function ():
         "Element [4], labelled 'button', a button, filled blue.",
     );
 });
+
+it('types a password from the caller secrets, never asking a model for it or showing one it', function (): void {
+    $secret = 'hunter2-correct-horse';
+    $models = new FakeModels([['TYPE_TEXT', 'Email'], ['TYPE_TEXT', 'Password'], ['CLICK', 'Show password'], ['CLICK', 'Create my account'], ['DONE']], ['Email' => 'jev@example.test']);
+
+    $state = runAgent($models, ['goals' => ['Register as jev@example.test'], 'readOnly' => false, 'secrets' => ['password' => $secret]], 'register.html');
+
+    expect($state->status)->toBe('done')
+        ->and(LocalChrome::run($this->tab->session, 'document.getElementById("password").value'))->toBe($secret)
+        ->and(json_encode($models->requests))->not->toContain($secret)
+        ->and(json_encode(array_map(fn ($s) => $s->toArray(), $state->history)))->not->toContain($secret)
+        ->and(array_map(fn ($s) => [$s->label, $s->secret], $state->history))->toContain(['Password', true])
+        ->and(Script::of($state)['steps'][1])->toBe(['kind' => 'fill', 'label' => 'Password', 'secret' => true]);
+});
+
+it('offers no typing into a password field when the caller gives no secret', function (): void {
+    $models = new FakeModels([['BLOCKED']]);
+
+    runAgent($models, ['goals' => ['Register as jev@example.test'], 'readOnly' => false], 'register.html');
+    $elements = $models->decisionRequests()[0]['state']['elements'];
+
+    $password = array_values(array_filter($elements, fn ($e) => $e['label'] === 'Password'))[0];
+
+    expect($password['operations'])->not->toContain('TYPE_TEXT');
+});
+
+it('refuses to replay a script that types a secret without one', function (): void {
+    $replayer = new Replayer(fn () => throw new RuntimeException('no tab should be opened'));
+
+    $replayer->replay(['version' => Script::VERSION, 'url' => 'https://example.test/', 'goal' => 'g', 'steps' => [['kind' => 'fill', 'label' => 'Password', 'secret' => true]]]);
+})->throws(ReplayException::class, "types a secret into 'Password'");

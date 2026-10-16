@@ -46,6 +46,7 @@ final class Step
         public readonly ?int $reusedFor = null,
         public readonly ?string $drop = null,
         public readonly ?string $context = null,
+        public readonly bool $secret = false,
     ) {}
 
     /**
@@ -79,6 +80,7 @@ final class Step
             'probability' => $this->probability,
             'confidence' => $this->confidence,
             'text' => $this->text,
+            'secret' => $this->secret,
             'note' => $this->note,
             'page_changed' => $this->pageChanged,
             'url' => $this->url,

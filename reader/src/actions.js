@@ -51,7 +51,9 @@ export function actionsFor(el, info, rect, node, options) {
         return selectActions(el, info, { ...base, ...info.states, rect }, options);
     }
     if (isSettable(el) || acceptsTyping(el, info.role)) {
-        const fill = { ...base, kind: 'fill', label: info.label, ...fillHints(el), ...shown };
+        // A private field is typed only from the caller's secrets, so the agent knows not to ask a
+        // model for its value.
+        const fill = { ...base, kind: 'fill', label: info.label, ...fillHints(el), ...shown, ...(isPrivate(el) ? { secret: true } : {}) };
 
         // Document mode is not acted on, so the Open click that lets the agent act is left out.
         return options.mode === 'document'

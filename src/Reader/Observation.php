@@ -100,6 +100,21 @@ final readonly class Observation
         );
     }
 
+    /**
+     * The same observation with another title, text and actions, as a model may be shown it. The
+     * fingerprint is kept: it names the page that was read, not what a model was told about it.
+     *
+     * @param  list<Action>  $actions
+     */
+    public function withContent(string $title, string $text, array $actions): self
+    {
+        return new self(
+            $this->url, $title, $this->viewportWidth, $this->viewportHeight, $this->scrollY, $this->scrollHeight,
+            $text, $actions, $this->omittedActions, $this->pageKey, $this->guards, $this->fingerprint,
+            $this->mode, $this->outline, $this->truncated, $this->busy,
+        );
+    }
+
     public function expandedCount(): int
     {
         return count(array_filter($this->actions, fn (Action $a) => $a->expanded === 'true'));

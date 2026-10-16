@@ -75,7 +75,7 @@ final class FieldValues
     public function prefetch(RunState $state, array $held): void
     {
         $page = $state->page;
-        $fills = array_values(array_filter($page->actions, fn (Action $a) => $a->kind === 'fill' && $a->available));
+        $fills = array_values(array_filter($page->actions, fn (Action $a) => $a->kind === 'fill' && $a->available && ! $a->secret));
         // Kept while the field is present and empty; dropped once it holds something.
         $holding = array_map(fn (Action $a) => $a->label, array_filter($fills, fn (Action $a) => ($a->value ?? '') !== ''));
         $this->ready = array_diff_key($this->ready, array_flip($holding));

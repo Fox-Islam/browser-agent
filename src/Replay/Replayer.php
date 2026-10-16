@@ -6,6 +6,7 @@ namespace Phox\BrowserAgent\Replay;
 
 use Closure;
 use Phox\BrowserAgent\Agent\Arrival;
+use Phox\BrowserAgent\Agent\Secrets;
 use Phox\BrowserAgent\Agent\Settler;
 use Phox\BrowserAgent\Agent\SettleTimings;
 use Phox\BrowserAgent\Cdp\BrowserTab;
@@ -47,6 +48,7 @@ final readonly class Replayer
         private Closure $open,
         private ReaderOptions $reading = new ReaderOptions,
         private SettleTimings $timings = new SettleTimings,
+        private Secrets $secrets = new Secrets,
     ) {}
 
     /**
@@ -58,7 +60,7 @@ final readonly class Replayer
      */
     public function replay(array $script, ?Closure $onStep = null): array
     {
-        Script::validate($script);
+        $this->typable(Script::validate($script));
         $repeatable = ! Script::mutates($script);
         for ($attempt = 0; ; $attempt++) {
             $done = [];
@@ -89,7 +91,7 @@ final readonly class Replayer
      */
     public function replayIn(CdpSession $session, array $script, ?Closure $onStep = null): array
     {
-        Script::validate($script);
+        $this->typable(Script::validate($script));
         $done = [];
         $this->steps($session, $script, $onStep, $done);
 
@@ -125,6 +127,21 @@ final readonly class Replayer
     private static function droppedConnection(CdpException $e): bool
     {
         return str_contains($e->getMessage(), 'CDP connection closed');
+    }
+
+    /**
+     * Refuses, before a browser is opened, a script with a secret step this replayer has no
+     * secret for.
+     *
+     * @param  array<string, mixed>  $script
+     */
+    private function typable(array $script): void
+    {
+        foreach ($script['steps'] as $number => $step) {
+            if (($step['secret'] ?? false) === true && $this->secrets->for((string) $step['label']) === null) {
+                throw new ReplayException('Step ' . ($number + 1) . " types a secret into '{$step['label']}'; give the Replayer one.");
+            }
+        }
     }
 
     /**
@@ -190,7 +207,8 @@ final readonly class Replayer
     {
         for ($attempt = 1; ; $attempt++) {
             $drop = isset($step['drop']) ? self::control($page, ['kind' => 'drop', 'label' => $step['drop']], $number) : null;
-            $execution = $executor->execute($page, self::control($page, $step, $number), $step['text'] ?? null, $drop);
+            $text = ($step['secret'] ?? false) === true ? $this->secrets->for((string) $step['label']) : ($step['text'] ?? null);
+            $execution = $executor->execute($page, self::control($page, $step, $number), $text, $drop);
             // Stale and covered both mean nothing was sent, so the step is matched again.
             $retry = in_array($execution->status, [ExecutionStatus::Stale, ExecutionStatus::Covered], true);
             if (! $retry || $attempt === self::STEP_ATTEMPTS) {
